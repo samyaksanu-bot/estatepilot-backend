@@ -23,4 +23,3 @@ async def verify_webhook(request: Request):
         return PlainTextResponse(challenge)
 
     return PlainTextResponse("Verification failed", status_code=403)
-
