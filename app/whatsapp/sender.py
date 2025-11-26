@@ -1,14 +1,14 @@
 import requests
 import os
 
-META_TOKEN = os.getenv("META_ACCESS_TOKEN")
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
 PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
 
-def send_whatsapp_message(to: str, text: str):
-    url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
+def send_whatsapp_message(to: str, message: str):
+    url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
 
     headers = {
-        "Authorization": f"Bearer {META_TOKEN}",
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
         "Content-Type": "application/json"
     }
 
@@ -17,9 +17,11 @@ def send_whatsapp_message(to: str, text: str):
         "to": to,
         "type": "text",
         "text": {
-            "body": text
+            "body": message
         }
     }
 
     response = requests.post(url, headers=headers, json=payload)
-    return response.json()
+
+    print("📤 WhatsApp send response:")
+    print(response.status_code, response.text)
