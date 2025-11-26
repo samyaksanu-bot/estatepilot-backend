@@ -9,6 +9,3 @@ app = FastAPI(
 @app.get("/health")
 def health():
     return {"status": "OK"}
-
-# ✅ Explicitly mount WhatsApp router
-app.include_router(whatsapp_router)
