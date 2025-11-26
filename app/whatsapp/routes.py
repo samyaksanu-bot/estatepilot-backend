@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 import os
 
-router = APIRouter()
+router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 
@@ -14,7 +14,6 @@ async def verify_webhook(request: Request):
     token = params.get("hub.verify_token")
     challenge = params.get("hub.challenge")
 
-    # DEBUG PRINT (IMPORTANT)
     print("MODE:", mode)
     print("TOKEN FROM META:", token)
     print("TOKEN FROM ENV:", VERIFY_TOKEN)
@@ -25,4 +24,3 @@ async def verify_webhook(request: Request):
 
     return PlainTextResponse("Verification failed", status_code=403)
 
-    return {"status": "received"}
