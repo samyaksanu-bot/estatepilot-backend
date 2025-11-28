@@ -28,6 +28,7 @@ async def verify_webhook(request: Request):
 # -----------------------------------------------------
 # 2. INCOMING WHATSAPP MESSAGES (POST)
 # -----------------------------------------------------
+# ✅ Incoming WhatsApp messages (POST)
 @router.post("/webhook")
 async def receive_message(request: Request):
     payload = await request.json()
@@ -36,15 +37,27 @@ async def receive_message(request: Request):
     print(json.dumps(payload, indent=2))
 
     try:
-        entry = payload.get("entry", [])[0]
-        changes = entry.get("changes", [])[0]
-        value = changes.get("value", {})
-        message = value.get("messages", [])[0]
+        entry = payload.get("entry", [])
+        if not entry:
+            return {"status": "ignored"}
+
+        changes = entry[0].get("changes", [])
+        if not changes:
+            return {"status": "ignored"}
+
+        value = changes[0].get("value", {})
+
+        # ✅ Ignore delivery/read/status events
+        if "messages" not in value:
+            print("ℹ️ Non-message event received. Ignored.")
+            return {"status": "ignored"}
+
+        message = value["messages"][0]
 
         from_number = message["from"]
         text = message["text"]["body"]
 
-        reply = f"EstatePilot working.\nYou said:\n{text}"
+        reply = f"✅ EstatePilot is live.\nYou said:\n{text}"
 
         send_whatsapp_message(
             to_number=from_number,
