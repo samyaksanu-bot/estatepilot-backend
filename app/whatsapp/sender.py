@@ -20,4 +20,5 @@ async def send_whatsapp_message(to: str, text: str):
     }
 
     async with httpx.AsyncClient() as client:
-        await client.post(url, headers=headers, json=payload)
+        res = await client.post(url, headers=headers, json=payload)
+        print("📤 WhatsApp send response:", res.status_code, res.text)
