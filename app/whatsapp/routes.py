@@ -26,11 +26,23 @@ async def verify_webhook(request: Request):
 
 # ✅ INCOMING MESSAGES
 @router.post("/webhook")
-async def incoming_webhook(request: Request):
+async def receive_message(request: Request):
     payload = await request.json()
 
-    print("📩 RAW WHATSAPP PAYLOAD")
+    # TEMP: single client
+    client_id = "ojas_builders"
+
+    try:
+        client_config = load_client_config(client_id)
+    except Exception as e:
+        print("❌ Client config error:", str(e))
+        return {"status": "error"}
+
+    print("✅ Client Loaded:", client_config["client"]["business_name"])
+    print("📩 Incoming WhatsApp Payload:")
     print(json.dumps(payload, indent=2))
+
+    return {"status": "received"}
 
     try:
         entry = payload["entry"][0]
