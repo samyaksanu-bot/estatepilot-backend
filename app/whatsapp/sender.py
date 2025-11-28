@@ -1,11 +1,11 @@
-import requests
+import httpx
 import os
 
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
 
-def send_whatsapp_message(to: str, message: str):
-    url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
+async def send_whatsapp_message(to: str, text: str):
+    url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
 
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
@@ -16,12 +16,8 @@ def send_whatsapp_message(to: str, message: str):
         "messaging_product": "whatsapp",
         "to": to,
         "type": "text",
-        "text": {
-            "body": message
-        }
+        "text": {"body": text}
     }
 
-    response = requests.post(url, headers=headers, json=payload)
-
-    print("📤 WhatsApp send response:")
-    print(response.status_code, response.text)
+    async with httpx.AsyncClient() as client:
+        await client.post(url, headers=headers, json=payload)
