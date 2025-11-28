@@ -23,24 +23,39 @@ async def verify_webhook(request: Request):
 
     return PlainTextResponse("Verification failed", status_code=403)
 
+from app.leads.lead_store import save_lead
+from app.client_configs.loader import load_client_config
+from app.core.message_router import decide_reply
+from app.whatsapp.sender import send_whatsapp_message
+import json
 
-# ✅ INCOMING MESSAGES
 @router.post("/webhook")
 async def receive_message(request: Request):
     payload = await request.json()
 
     # TEMP: single client
     client_id = "ojas_builders"
+    config = load_client_config(client_id)
 
     try:
-        client_config = load_client_config(client_id)
-    except Exception as e:
-        print("❌ Client config error:", str(e))
-        return {"status": "error"}
+        message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
 
-    print("✅ Client Loaded:", client_config["client"]["business_name"])
-    print("📩 Incoming WhatsApp Payload:")
-    print(json.dumps(payload, indent=2))
+        from_number = message["from"]
+        user_text = message["text"]["body"]
+
+        decision = decide_reply(user_text, config)
+
+        if decision["type"] == "escalate":
+            save_lead(from_number, user_text, client_id)
+
+        await send_whatsapp_message(
+            to=from_number,
+            text=decision["text"]
+        )
+
+    except Exception as e:
+        print("Webhook processing failed:", e)
+        print(json.dumps(payload, indent=2))
 
     return {"status": "received"}
 
