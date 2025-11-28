@@ -3,14 +3,13 @@ from fastapi.responses import PlainTextResponse
 import os
 import json
 
-router = APIRouter(
-    prefix="/whatsapp",
-    tags=["WhatsApp"]
-)
+from app.whatsapp.sender import send_whatsapp_message
+
+router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 
-# ✅ Meta verification
+# ✅ Webhook verification (GET)
 @router.get("/webhook")
 async def verify_webhook(request: Request):
     params = request.query_params
@@ -23,12 +22,28 @@ async def verify_webhook(request: Request):
 
     return PlainTextResponse("Verification failed", status_code=403)
 
-# ✅ Incoming messages
+
+# ✅ Incoming WhatsApp messages (POST)
 @router.post("/webhook")
 async def receive_message(request: Request):
     payload = await request.json()
-
-    print("📩 Incoming WhatsApp payload:")
+    print("📩 Incoming payload:")
     print(json.dumps(payload, indent=2))
 
+    try:
+        message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
+        from_number = message["from"]
+        text = message["text"]["body"]
+
+        reply = f"✅ EstatePilot Working.\nYou said:\n{text}"
+
+        send_whatsapp_message(
+            to=from_number,
+            text=reply
+        )
+
+    except Exception as e:
+        print("❌ Error processing message:", str(e))
+
     return {"status": "received"}
+
