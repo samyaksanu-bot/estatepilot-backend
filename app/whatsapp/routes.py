@@ -31,9 +31,26 @@ async def receive_message(request: Request):
     print(json.dumps(payload, indent=2))
 
     try:
-        message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
-        from_number = message["from"]
-        text = message["text"]["body"]
+       entry = payload.get("entry", [])[0]
+changes = entry.get("changes", [])[0]
+value = changes.get("value", {})
+
+messages = value.get("messages", [])
+
+# If no "messages" key → ignore (likely status update)
+if not messages:
+    print("⚠ No user message in this update. Skipping.")
+    return {"status": "ignored"}
+
+message = messages[0]
+
+from_number = message.get("from")
+text = message.get("text", {}).get("body")
+
+# If it's not a text message (image, reaction, etc.)
+if not text:
+    print("⚠ No text body found in message.")
+    return {"status": "no_text"}
 
         reply = f"✅ EstatePilot Working.\nYou said:\n{text}"
 
