@@ -1,0 +1,55 @@
+{
+  "client": {
+    "client_id": "ojas_builders_001",
+    "business_name": "Ojas Builders",
+    "city": "Patna",
+    "tone": "professional",
+    "language": "hinglish"
+  },
+  "whatsapp": {
+    "escalation_contact": "+919800000000",
+    "after_hours_message": "Thank you for contacting Ojas Builders. Our team will get back to you during working hours."
+  },
+  "projects": [
+    {
+      "project_id": "ojas_park_view",
+      "name": "Ojas Park View",
+      "property_type": "apartment",
+      "location": "Saguna More, Patna",
+      "possession_status": "ready_to_move",
+      "pricing": {
+        "base_price": "65 Lakh onwards",
+        "govt_charges": "As per government norms",
+        "negotiable": false
+      },
+      "legal": {
+        "rera_number": "BRERA-XXXX",
+        "approvals": [
+          "RERA approved",
+          "Municipal Approval"
+        ],
+        "notes": "All documents available on request."
+      },
+      "assets": {
+        "brochure_url": "https://example.com/ojas-park-view-brochure.pdf",
+        "layout_url": "https://example.com/ojas-park-view-layout.jpg",
+        "site_visit_link": "https://wa.me/919800000000?text=I%20want%20to%20book%20a%20site%20visit%20for%20Ojas%20Park%20View"
+      },
+      "rules": {
+        "auto_reply_allowed": [
+          "location",
+          "brochure",
+          "site_visit",
+          "amenities",
+          "basic_project_info"
+        ],
+        "human_only": [
+          "price_negotiation",
+          "discount",
+          "legal_dispute",
+          "custom_payment_plan"
+        ]
+      }
+    }
+  ]
+}
