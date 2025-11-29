@@ -6,11 +6,13 @@ import json
 # ✅ WhatsApp sender
 from app.whatsapp.sender import send_whatsapp_message
 
-# ✅ Brain + state imports
+# ✅ Brain + state
 from app.state import get_state
 from app.router import route_message
 
-# ✅ Router setup
+# ✅ IMPORT COUNTERS FROM MAIN (THIS FIXES THE ERROR)
+from main import COUNTERS
+
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
@@ -52,7 +54,7 @@ async def receive_message(request: Request):
 
         value = changes[0].get("value", {})
 
-        # ✅ Ignore non-message events
+        # ✅ Ignore delivery/read events
         if "messages" not in value:
             print("ℹ️ Non-message event received. Ignored.")
             return {"status": "ignored"}
@@ -62,7 +64,7 @@ async def receive_message(request: Request):
         from_number = message["from"]
         text = message["text"]["body"]
 
-        # ✅ CORE CHANGE: intelligent routing (NO echo)
+        # ✅ CORE INTELLIGENCE
         state = get_state(from_number)
         reply = route_message(text, state, COUNTERS)
 
