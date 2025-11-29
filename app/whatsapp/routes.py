@@ -11,7 +11,7 @@ from app.state import get_state
 from app.router import route_message
 
 # ✅ IMPORT COUNTERS FROM MAIN (THIS FIXES THE ERROR)
-from main import COUNTERS
+from app.context import COUNTERS
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
