@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from app.brain_loader import load_brain
-from app.router_loader.load import load_all_routers
 
-# Load brain once at startup
+# ✅ Explicit WhatsApp router import
+from app.whatsapp.routes import router as whatsapp_router
+
 COUNTERS, SCORING = load_brain()
 print("✅ EstatePilot brain loaded:", COUNTERS.keys())
 
@@ -11,8 +12,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# ✅ Auto-load ALL routers (WhatsApp included)
-app.include_router(load_all_routers())
+# ✅ Mount WhatsApp explicitly
+app.include_router(whatsapp_router)
 
 @app.get("/health")
 def health():
