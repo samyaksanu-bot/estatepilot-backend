@@ -1,47 +1,38 @@
 import os
 import requests
-import json
 
-# ✅ Required environment variables
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")          # Permanent access token
-PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")        # WhatsApp phone number ID
+META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN")
+PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
 
-WHATSAPP_API_URL = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
+GRAPH_URL = "https://graph.facebook.com/v19.0"
 
-
-def send_whatsapp_message(to_number: str, text: str):
+def send_whatsapp_message(to: str, message: str):
     """
-    Sends a WhatsApp text message using the Meta Cloud API
+    Send a WhatsApp text message using Meta Cloud API
     """
 
-    if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
+    if not META_ACCESS_TOKEN or not PHONE_NUMBER_ID:
         raise Exception("WHATSAPP_TOKEN or PHONE_NUMBER_ID is missing")
 
+    url = f"{GRAPH_URL}/{PHONE_NUMBER_ID}/messages"
+
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Authorization": f"Bearer {META_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
 
     payload = {
         "messaging_product": "whatsapp",
-        "to": to_number,
+        "to": to,
         "type": "text",
         "text": {
-            "body": text
+            "body": message
         }
     }
 
-    response = requests.post(
-        WHATSAPP_API_URL,
-        headers=headers,
-        json=payload
-    )
+    response = requests.post(url, headers=headers, json=payload)
 
-    # ✅ Log response for debugging
-    print("📤 WhatsApp API Status:", response.status_code)
-    print("📤 WhatsApp API Response:", response.text)
-
-    if response.status_code >= 400:
-        raise Exception(response.text)
+    if response.status_code >= 300:
+        raise Exception(f"WhatsApp send failed: {response.text}")
 
     return response.json()
