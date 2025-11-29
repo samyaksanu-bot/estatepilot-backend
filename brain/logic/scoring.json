@@ -1,0 +1,26 @@
+{
+  "intent": {
+    "buy": 30,
+    "explore": 15,
+    "unknown": 0
+  },
+  "budget_match": {
+    "confirmed": 25,
+    "inferred": 15,
+    "unknown": 0
+  },
+  "timeline": {
+    "immediate": 25,
+    "short_term": 15,
+    "long_term": 5,
+    "unknown": 0
+  },
+  "engagement": {
+    "answered_counters": 20,
+    "one_word_replies": 0
+  },
+  "thresholds": {
+    "hot": 70,
+    "warm": 40
+  }
+}
