@@ -60,9 +60,9 @@ async def receive_message(request: Request):
         reply = f"✅ EstatePilot is live.\nYou said:\n{text}"
 
         send_whatsapp_message(
-            to_number=from_number,
-            text=reply
-        )
+    to=from_number,
+    message=reply
+)
 
     except Exception as e:
         print("❌ Error processing message:", str(e))
