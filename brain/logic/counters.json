@@ -1,0 +1,33 @@
+{
+  "price_query": {
+    "lever": "guided_choice",
+    "responses": {
+      "english": "Prices start around {price}. Buyers usually compare whether this range fits comfortably or if stretching makes sense for a bigger layout. Which side would you like to explore?",
+      "hinglish": "Pricing {price} ke around start hoti hai. Is range mein buyers usually decide karte hain comfort mein rehna hai ya thoda bada layout dekhna hai. Aap kaunsa explore karna chahenge?"
+    }
+  },
+
+  "location_query": {
+    "lever": "risk_reversal",
+    "responses": {
+      "english": "It’s located in {zone}. Before I share exact details, I want to understand—are you prioritizing daily commute or long-term value?",
+      "hinglish": "Project {zone} side hai. Exact location share karne se pehle ek clarity chahiye—daily commute zyada important hai ya long-term value?"
+    }
+  },
+
+  "budget_resistance": {
+    "lever": "bracketing",
+    "responses": {
+      "english": "That’s fine. Projects here usually work for buyers between {range1} or those exploring slightly above {range2}. Which feels closer?",
+      "hinglish": "No worries. Is segment mein buyers ya toh {range1} ke around dekhte hain ya phir {range2} ke upar. Kaunsa zyada closer lagta hai?"
+    }
+  },
+
+  "vague_confirmation": {
+    "lever": "clarity_reset",
+    "responses": {
+      "english": "Just to make sure I guide you correctly—what would you like to proceed with?",
+      "hinglish": "Main sahi guide karne ke liye confirm karna chahta hoon—aap exactly kis cheez ke saath proceed karna chahte ho?"
+    }
+  }
+}
