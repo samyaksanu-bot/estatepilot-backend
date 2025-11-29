@@ -13,6 +13,9 @@ app = FastAPI(
 # ✅ Auto load ALL routers (including WhatsApp)
 app.include_router(load_all_routers())
 
+from app.whatsapp.routes import router as whatsapp_router
+app.include_router(whatsapp_router)
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
