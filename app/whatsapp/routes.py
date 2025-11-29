@@ -3,8 +3,14 @@ from fastapi.responses import PlainTextResponse
 import os
 import json
 
+# ✅ WhatsApp sender
 from app.whatsapp.sender import send_whatsapp_message
 
+# ✅ Brain + state imports
+from app.state import get_state
+from app.router import route_message
+
+# ✅ Router setup
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
@@ -28,7 +34,6 @@ async def verify_webhook(request: Request):
 # -----------------------------------------------------
 # 2. INCOMING WHATSAPP MESSAGES (POST)
 # -----------------------------------------------------
-# ✅ Incoming WhatsApp messages (POST)
 @router.post("/webhook")
 async def receive_message(request: Request):
     payload = await request.json()
@@ -47,7 +52,7 @@ async def receive_message(request: Request):
 
         value = changes[0].get("value", {})
 
-        # ✅ Ignore delivery/read/status events
+        # ✅ Ignore non-message events
         if "messages" not in value:
             print("ℹ️ Non-message event received. Ignored.")
             return {"status": "ignored"}
@@ -57,12 +62,14 @@ async def receive_message(request: Request):
         from_number = message["from"]
         text = message["text"]["body"]
 
-        reply = f"✅ EstatePilot is live.\nYou said:\n{text}"
+        # ✅ CORE CHANGE: intelligent routing (NO echo)
+        state = get_state(from_number)
+        reply = route_message(text, state, COUNTERS)
 
         send_whatsapp_message(
-    to=from_number,
-    message=reply
-)
+            to=from_number,
+            message=reply
+        )
 
     except Exception as e:
         print("❌ Error processing message:", str(e))
