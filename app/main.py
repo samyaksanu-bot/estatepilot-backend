@@ -1,3 +1,7 @@
+from app.brain_loader import load_brain
+
+COUNTERS, SCORING = load_brain()
+print("✅ EstatePilot brain loaded:", COUNTERS.keys())
 from fastapi import FastAPI
 from app.router_loader.load import load_all_routers
 
