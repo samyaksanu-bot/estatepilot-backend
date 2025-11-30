@@ -12,6 +12,8 @@ from app.state import get_state
 # ✅ LLM reply engine
 from app.reply_engine import generate_reply
 
+from app.lead_store import save_lead
+
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
