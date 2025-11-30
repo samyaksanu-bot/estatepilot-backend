@@ -1,24 +1,18 @@
 import os
-from typing import Optional
-from openai import OpenAI
+import requests
 
-# ✅ OpenAI client (new SDK compatible)
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
-# ✅ System behavior – human, non-pushy
-SYSTEM_PROMPT = """
-You are a professional real estate advisor chatting on WhatsApp.
 
-Rules:
-- Speak naturally like a human.
-- Never repeat the same sentence twice.
-- Do NOT sound salesy or robotic.
-- If user says ok / fine / no → stay silent.
-- Ask soft follow-ups, not forced ones.
-- Once site visit is agreed → stop pitching.
-"""
+def should_stay_silent(text: str) -> bool:
+    silence_words = {
+        "ok", "okay", "cool", "fine", "thanks",
+        "thank you", "no", "stop", "leave it", "later"
+    }
+    return text.lower().strip() in silence_words
 
-# ✅ Load project-specific knowledge
+
 def load_project_knowledge() -> str:
     try:
         with open("app/knowledge/project.txt", "r", encoding="utf-8") as f:
@@ -26,55 +20,65 @@ def load_project_knowledge() -> str:
     except Exception:
         return ""
 
-# ✅ Silence detection
-def should_be_silent(text: str) -> bool:
-    stop_words = {
-        "ok", "okay", "cool", "fine", "thanks", "thank you",
-        "no", "stop", "leave it", "later"
-    }
-    return text.strip().lower() in stop_words
 
-# ✅ Main reply generator
-def generate_reply(user_text: str, state: dict) -> Optional[str]:
-    # Hard stop after handoff
+def generate_reply(user_text: str, state: dict) -> str | None:
+    # ✅ If handed off → bot must stop
     if state.get("handoff_done"):
         return None
 
-    if should_be_silent(user_text):
+    # ✅ Respect user silence
+    if should_stay_silent(user_text):
         return None
 
-    knowledge = load_project_knowledge()
+    project_info = load_project_knowledge()
+
+    system_prompt = f"""
+You are a human real estate advisor chatting on WhatsApp.
+
+Rules:
+- Never sound robotic
+- Never repeat messages
+- Never oversell
+- Ask gently
+- If site visit confirmed → STOP messaging
+
+Project details:
+{project_info}
+"""
 
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "system", "content": f"Project Information:\n{knowledge}"}
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_text}
     ]
 
-    # Maintain conversation memory (short)
-    if state.get("summary"):
-        messages.append({
-            "role": "system",
-            "content": f"Conversation so far:\n{state['summary']}"
-        })
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-    messages.append({"role": "user", "content": user_text})
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": messages,
+        "temperature": 0.6
+    }
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        temperature=0.6
-    )
+    try:
+        response = requests.post(
+            OPENAI_URL,
+            headers=headers,
+            json=payload,
+            timeout=15
+        )
+        response.raise_for_status()
 
-    reply = response.choices[0].message.content.strip()
+        reply = response.json()["choices"][0]["message"]["content"].strip()
 
-    # Detect visit handoff
-    if "visit" in reply.lower() or "advisor" in reply.lower():
-        state["handoff_done"] = True
+        # ✅ Detect handoff intent
+        if any(x in reply.lower() for x in ["visit", "advisor", "call you"]):
+            state["handoff_done"] = True
 
-    # Save rolling memory (compact)
-    state["summary"] = (
-        state.get("summary", "") +
-        f"\nUser: {user_text}\nAdvisor: {reply}"
-    )[-2000:]
+        return reply
 
-    return reply
+    except Exception as e:
+        print("❌ LLM error:", e)
+        return "I’ll have our advisor assist you shortly."
