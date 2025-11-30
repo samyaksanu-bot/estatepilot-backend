@@ -1,84 +1,62 @@
-import os
-import requests
+def generate_reply(text: str, state: dict) -> str | None:
+    text = text.lower().strip()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-
-
-def should_stay_silent(text: str) -> bool:
-    silence_words = {
-        "ok", "okay", "cool", "fine", "thanks",
-        "thank you", "no", "stop", "leave it", "later"
-    }
-    return text.lower().strip() in silence_words
-
-
-def load_project_knowledge() -> str:
-    try:
-        with open("app/knowledge/project.txt", "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception:
-        return ""
-
-
-def generate_reply(user_text: str, state: dict) -> str | None:
-    # ✅ If handed off → bot must stop
+    # ✅ BLOCK BOT AFTER HANDOFF
     if state.get("handoff_done"):
         return None
 
-    # ✅ Respect user silence
-    if should_stay_silent(user_text):
+    # ✅ IGNORE VERY SHORT OR NOISE MESSAGES
+    if len(text) <= 2 or text in ["ok", "okay", "cool", "no", "yes", "hmm"]:
         return None
 
-    project_info = load_project_knowledge()
-
-    system_prompt = f"""
-You are a human real estate advisor chatting on WhatsApp.
-
-Rules:
-- Never sound robotic
-- Never repeat messages
-- Never oversell
-- Ask gently
-- If site visit confirmed → STOP messaging
-
-Project details:
-{project_info}
-"""
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_text}
-    ]
-
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": messages,
-        "temperature": 0.6
-    }
-
-    try:
-        response = requests.post(
-            OPENAI_URL,
-            headers=headers,
-            json=payload,
-            timeout=15
+    # STEP 1: INTRO
+    if state["step"] == "intro":
+        state["step"] = "discover"
+        return (
+            "Hi 👋 Happy to help.\n\n"
+            "What would you like to know first?\n"
+            "1️⃣ Price range\n"
+            "2️⃣ Location\n"
+            "3️⃣ Project details"
         )
-        response.raise_for_status()
 
-        reply = response.json()["choices"][0]["message"]["content"].strip()
+    # STEP 2: DISCOVERY
+    if state["step"] == "discover":
+        if "price" in text or "budget" in text:
+            state["step"] = "budget"
+            return "Sure. What budget range are you considering?"
 
-        # ✅ Detect handoff intent
-        if any(x in reply.lower() for x in ["visit", "advisor", "call you"]):
-            state["handoff_done"] = True
+        if "location" in text or "where" in text:
+            state["step"] = "location"
+            return "Which location are you looking at?"
 
-        return reply
+        if "detail" in text or "project" in text:
+            return (
+                "This is a gated project with clear titles and good connectivity.\n"
+                "Would you like to check price or location?"
+            )
 
-    except Exception as e:
-        print("❌ LLM error:", e)
-        return "I’ll have our advisor assist you shortly."
+        return "Just to guide you better—are you checking price, location, or project details?"
+
+    # STEP 3: BUDGET
+    if state["step"] == "budget":
+        state["budget"] = text
+        state["step"] = "soft_visit"
+        return (
+            "That works 👍 Based on this budget, we have suitable options.\n\n"
+            "Would you like the location details or shall I help arrange a site visit?"
+        )
+
+    # STEP 4: LOCATION
+    if state["step"] == "location":
+        state["location"] = text
+        state["step"] = "soft_visit"
+        return (
+            f"Great choice. {text.title()} is a promising area.\n\n"
+            "Would you like price details or plan a site visit?"
+        )
+
+    # STEP 5: SOFT VISIT (NON-PUSHY)
+    if state["step"] == "soft_visit":
+        if "visit" in text or "see" in text or "come" in text:
+            sta
