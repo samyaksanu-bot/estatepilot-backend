@@ -2,84 +2,81 @@
 
 def next_reply(text: str, state: dict) -> str:
     text = text.lower().strip()
+    state["messages_count"] += 1
 
-    # ---------------- START ----------------
-    if state["stage"] == "start":
-        state["stage"] = "discover"
+    # ---------------- STEP 1: INTRO ----------------
+    if state["step"] == "intro":
+        state["step"] = "intent"
         return (
-            "Hi 👋 Glad you reached out.\n"
-            "Tell me—are you exploring plots or flats at the moment?"
+            "Hi 👋 Happy to help.\n\n"
+            "What would you like to know about?\n"
+            "1️⃣ Price range\n"
+            "2️⃣ Location\n"
+            "3️⃣ Project details"
         )
 
-    # ---------------- DISCOVER ----------------
-    if state["stage"] == "discover":
-        if "plot" in text or "land" in text:
-            state["interest"] = "plot"
-        elif "flat" in text or "apartment" in text:
-            state["interest"] = "flat"
-        else:
+    # ---------------- STEP 2: INTENT ----------------
+    if state["step"] == "intent":
+        if "price" in text or "budget" in text:
+            state["intent"] = "price"
+            state["step"] = "budget"
+            return "Sure. What budget range are you considering?"
+
+        if "location" in text or "where" in text:
+            state["intent"] = "location"
+            state["step"] = "location"
+            return "Which area or locality are you looking at?"
+
+        if "detail" in text or "project" in text or "more" in text:
+            state["intent"] = "details"
             return (
-                "Got it 👍\n"
-                "Are you more interested in plots or ready-to-move flats?"
+                "This is a verified project with clear titles and good connectivity.\n"
+                "Would you like to check price or location first?"
             )
 
-        state["stage"] = "qualify"
+        return "Just to guide you better—are you checking price, location, or details?"
+
+    # ---------------- STEP 3: BUDGET ----------------
+    if state["step"] == "budget":
+        state["budget"] = text
+        state["step"] = "soft_visit"
         return (
-            f"Nice choice. {state['interest'].title()} projects are in strong demand.\n"
-            "What kind of location do you prefer?"
+            "That works 👍 Based on this budget, there are suitable options.\n\n"
+            "Would you like the project location, or should I help arrange a site visit?"
         )
 
-    # ---------------- QUALIFY ----------------
-    if state["stage"] == "qualify":
-        if state["location"] is None:
-            state["location"] = text
-            return (
-                f"Understood. {text.title()} is a solid area.\n"
-                "Do you already have a budget range in mind?"
-            )
+    # ---------------- STEP 4: LOCATION ----------------
+    if state["step"] == "location":
+        state["location"] = text
+        state["step"] = "soft_visit"
+        return (
+            f"{text.title()} is a good choice.\n\n"
+            "Would you like price details or prefer to visit the site?"
+        )
 
-        if state["budget"] is None:
-            state["budget"] = text
-            state["stage"] = "engage"
+    # ---------------- STEP 5: SOFT VISIT (NOT PUSHY) ----------------
+    if state["step"] == "soft_visit":
+        if "visit" in text or "see" in text or "site" in text:
+            state["step"] = "handoff"
+            state["handoff"] = True
             return (
-                "Thanks for sharing 👍\n"
-                "Based on what you told me, I have a few good options.\n"
-                "Would you like details first or prefer to see the site once?"
-            )
-
-    # ---------------- ENGAGE (HUMAN FEEL) ----------------
-    if state["stage"] == "engage":
-        if any(k in text for k in ["visit", "see", "site", "come"]):
-            state["visit_ready"] = True
-            state["stage"] = "handoff"
-            return (
-                "That makes sense 👍\n"
-                "A quick site visit usually clears everything.\n"
-                "I’ll ask our local advisor to call and fix a convenient time for you."
-            )
-
-        if any(k in text for k in ["price", "cost", "detail", "more"]):
-            return (
-                "Sure.\n"
-                "These projects have clear titles, good access roads, and planned development.\n"
-                "No rush at all—whenever you feel comfortable, we can plan a visit."
+                "Perfect 👍\n"
+                "I’ll have our local advisor call you shortly to coordinate a site visit.\n"
+                "They’ll confirm the date and timing with you."
             )
 
         return (
-            "I’m here to help—tell me what you’d like to know next 😊"
+            "No rush at all 🙂\n"
+            "I can share price breakup, layout plan, or nearby landmarks.\n"
+            "What would you like?"
         )
 
-    # ---------------- HANDOFF ----------------
-    if state["stage"] == "handoff":
-        if not state["handoff_done"]:
-            state["handoff_done"] = True
-            return (
-                "✅ Request noted.\n"
-                "Our advisor will call you shortly to confirm date and time.\n"
-                "Meanwhile, feel free to ask me anything."
-            )
-
-        return "Our advisor will connect with you shortly. 👍"
+    # ---------------- STEP 6: HANDOFF ----------------
+    if state["step"] == "handoff":
+        return (
+            "Our advisor will reach out shortly.\n"
+            "Meanwhile, feel free to ask if you need anything else."
+        )
 
     # ---------------- FALLBACK ----------------
-    return "Tell me a bit more so I can guide you better 🙂"
+    return "I’m here to help 🙂 Tell me what you’d like to know."
