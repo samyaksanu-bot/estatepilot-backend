@@ -1,26 +1,22 @@
-from app.conversation_engine import next_reply
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 import os
 import json
 
-# ✅ WhatsApp sender
+# WhatsApp sender
 from app.whatsapp.sender import send_whatsapp_message
 
-# ✅ Brain + state
+# Conversation brain
+from app.conversation_engine import next_reply
 from app.state import get_state
-from app.router import route_message
-
-# ✅ IMPORT COUNTERS FROM MAIN (THIS FIXES THE ERROR)
-from app.context import COUNTERS
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 
-# -----------------------------------------------------
+# -------------------------------------------------
 # 1. WHATSAPP WEBHOOK VERIFICATION (GET)
-# -----------------------------------------------------
+# -------------------------------------------------
 @router.get("/webhook")
 async def verify_webhook(request: Request):
     params = request.query_params
@@ -34,15 +30,13 @@ async def verify_webhook(request: Request):
 
     return PlainTextResponse("Verification failed", status_code=403)
 
-# -----------------------------------------------------
+
+# -------------------------------------------------
 # 2. INCOMING WHATSAPP MESSAGES (POST)
-# -----------------------------------------------------
+# -------------------------------------------------
 @router.post("/webhook")
 async def receive_message(request: Request):
     payload = await request.json()
-
-    print("📩 Incoming payload:")
-    print(json.dumps(payload, indent=2))
 
     try:
         entry = payload.get("entry", [])
@@ -55,29 +49,32 @@ async def receive_message(request: Request):
 
         value = changes[0].get("value", {})
 
-        # ✅ Ignore delivery/read events
+        # Ignore delivery / read / status events
         if "messages" not in value:
-            print("ℹ️ Non-message event received. Ignored.")
             return {"status": "ignored"}
 
         message = value["messages"][0]
 
-        from_number = message["from"]
-        text = message["text"]["body"]
+        from_number = message.get("from")
+        if not from_number:
+            return {"status": "ignored"}
 
-        # ✅ CORE INTELLIGENCE
+        # Only handle text messages
+        text = message.get("text", {}).get("body")
+        if not text:
+            return {"status": "ignored"}
+
+        # ---------------- CORE INTELLIGENCE ----------------
         state = get_state(from_number)
-        from app.conversation_engine import next_reply
-
-reply = next_reply(text, state)
+        reply = next_reply(text, state)
 
         if reply:
-    send_whatsapp_message(
-        to=from_number,
-        message=reply
-    )
+            send_whatsapp_message(
+                to=from_number,
+                message=reply
+            )
 
     except Exception as e:
-        print("❌ Error processing message:", str(e))
+        print("❌ WhatsApp processing error:", str(e))
 
     return {"status": "received"}
