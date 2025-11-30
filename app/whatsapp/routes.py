@@ -74,6 +74,12 @@ async def receive_message(request: Request):
                 text=reply
             )
 
+# ✅ HUMAN HANDOFF LOGIC (ADD HERE)
+if state.get("handoff_done") and not state.get("notified"):
+    save_lead(from_number, state)
+    state["notified"] = True
+    print("📞 Human handoff required for:", from_number)
+    
     except Exception as e:
         print("❌ Error processing WhatsApp message:", str(e))
 
