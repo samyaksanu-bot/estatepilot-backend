@@ -69,10 +69,7 @@ async def receive_message(request: Request):
 
         # ✅ Send only if reply exists
         if reply:
-            send_whatsapp_message(
-                to_number=from_number,
-                text=reply
-            )
+            send_whatsapp_message(from_number, reply)
 
 # ✅ HUMAN HANDOFF LOGIC (ADD HERE)
 if state.get("handoff_done") and not state.get("notified"):
