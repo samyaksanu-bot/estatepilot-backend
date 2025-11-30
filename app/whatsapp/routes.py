@@ -3,24 +3,25 @@ from fastapi.responses import PlainTextResponse
 import os
 import json
 
-# WhatsApp sender
+# ✅ WhatsApp sender
 from app.whatsapp.sender import send_whatsapp_message
 
-# Conversation brain
-from app.conversation_engine import next_reply
+# ✅ State manager
 from app.state import get_state
+
+# ✅ LLM reply engine
+from app.reply_engine import generate_reply
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 
-# -------------------------------------------------
-# 1. WHATSAPP WEBHOOK VERIFICATION (GET)
-# -------------------------------------------------
+# --------------------------------------------------
+# ✅ WhatsApp Webhook Verification (GET)
+# --------------------------------------------------
 @router.get("/webhook")
 async def verify_webhook(request: Request):
     params = request.query_params
-
     mode = params.get("hub.mode")
     token = params.get("hub.verify_token")
     challenge = params.get("hub.challenge")
@@ -30,13 +31,14 @@ async def verify_webhook(request: Request):
 
     return PlainTextResponse("Verification failed", status_code=403)
 
-
-# -------------------------------------------------
-# 2. INCOMING WHATSAPP MESSAGES (POST)
-# -------------------------------------------------
+# --------------------------------------------------
+# ✅ Incoming WhatsApp Messages (POST)
+# --------------------------------------------------
 @router.post("/webhook")
 async def receive_message(request: Request):
     payload = await request.json()
+    print("📩 Incoming payload:")
+    print(json.dumps(payload, indent=2))
 
     try:
         entry = payload.get("entry", [])
@@ -49,34 +51,29 @@ async def receive_message(request: Request):
 
         value = changes[0].get("value", {})
 
-        # Ignore delivery / read / status events
+        # Ignore delivery/read receipts
         if "messages" not in value:
             return {"status": "ignored"}
 
         message = value["messages"][0]
+        from_number = message["from"]
+        text = message["text"]["body"]
 
-        from_number = message.get("from")
-        if not from_number:
-            return {"status": "ignored"}
-
-        # Only handle text messages
-        text = message.get("text", {}).get("body")
-        if not text:
-            return {"status": "ignored"}
-
-        # ---------------- CORE INTELLIGENCE ----------------
+        # ✅ Load user state
         state = get_state(from_number)
-       from app.reply_engine import generate_reply
 
-reply = generate_reply(text, state)
+        # ✅ Generate AI reply
+        reply = generate_reply(text, state)
 
+        # ✅ Send only if reply exists
         if reply:
             send_whatsapp_message(
-                to=from_number,
-                message=reply
+                to_number=from_number,
+                text=reply
             )
 
     except Exception as e:
-        print("❌ WhatsApp processing error:", str(e))
+        print("❌ Error processing WhatsApp message:", str(e))
 
     return {"status": "received"}
+
