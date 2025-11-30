@@ -1,3 +1,4 @@
+from app.conversation_engine import next_reply
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 import os
@@ -66,7 +67,9 @@ async def receive_message(request: Request):
 
         # ✅ CORE INTELLIGENCE
         state = get_state(from_number)
-        reply = route_message(text, state, COUNTERS)
+        from app.conversation_engine import next_reply
+
+reply = next_reply(text, state)
 
         send_whatsapp_message(
             to=from_number,
