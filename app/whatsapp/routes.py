@@ -66,7 +66,9 @@ async def receive_message(request: Request):
 
         # ---------------- CORE INTELLIGENCE ----------------
         state = get_state(from_number)
-        reply = next_reply(text, state)
+       from app.reply_engine import generate_reply
+
+reply = generate_reply(text, state)
 
         if reply:
             send_whatsapp_message(
