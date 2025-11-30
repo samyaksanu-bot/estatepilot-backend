@@ -2,32 +2,41 @@ import os
 from typing import Optional
 from openai import OpenAI
 
+# ✅ OpenAI client (new SDK compatible)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# ✅ System behavior – human, non-pushy
 SYSTEM_PROMPT = """
-You are a calm, polite real estate advisor.
+You are a professional real estate advisor chatting on WhatsApp.
 
 Rules:
-- Talk like a real human, not a bot.
-- NEVER repeat the same sentence.
-- Do not oversell.
-- Ask soft follow-up questions.
-- If user says stop / no / ok repeatedly — go silent.
-- If site visit is confirmed, stop selling.
+- Speak naturally like a human.
+- Never repeat the same sentence twice.
+- Do NOT sound salesy or robotic.
+- If user says ok / fine / no → stay silent.
+- Ask soft follow-ups, not forced ones.
+- Once site visit is agreed → stop pitching.
 """
 
+# ✅ Load project-specific knowledge
 def load_project_knowledge() -> str:
     try:
         with open("app/knowledge/project.txt", "r", encoding="utf-8") as f:
             return f.read()
-    except:
+    except Exception:
         return ""
 
+# ✅ Silence detection
 def should_be_silent(text: str) -> bool:
-    stop_words = {"ok", "okay", "cool", "fine", "thanks", "thank you", "no"}
+    stop_words = {
+        "ok", "okay", "cool", "fine", "thanks", "thank you",
+        "no", "stop", "leave it", "later"
+    }
     return text.strip().lower() in stop_words
 
+# ✅ Main reply generator
 def generate_reply(user_text: str, state: dict) -> Optional[str]:
+    # Hard stop after handoff
     if state.get("handoff_done"):
         return None
 
@@ -38,27 +47,34 @@ def generate_reply(user_text: str, state: dict) -> Optional[str]:
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "system", "content": f"Project Info:\n{knowledge}"},
+        {"role": "system", "content": f"Project Information:\n{knowledge}"}
     ]
 
+    # Maintain conversation memory (short)
     if state.get("summary"):
-        messages.append({"role": "system", "content": state["summary"]})
+        messages.append({
+            "role": "system",
+            "content": f"Conversation so far:\n{state['summary']}"
+        })
 
     messages.append({"role": "user", "content": user_text})
 
-    completion = client.chat.completions.create(
+    response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
-        temperature=0.5
+        temperature=0.6
     )
 
-    reply = completion.choices[0].message.content.strip()
+    reply = response.choices[0].message.content.strip()
 
-    if "site visit" in reply.lower():
+    # Detect visit handoff
+    if "visit" in reply.lower() or "advisor" in reply.lower():
         state["handoff_done"] = True
 
-    state["summary"] = (state.get("summary", "") +
-                        f"\nUser: {user_text}\nAdvisor: {reply}")
+    # Save rolling memory (compact)
+    state["summary"] = (
+        state.get("summary", "") +
+        f"\nUser: {user_text}\nAdvisor: {reply}"
+    )[-2000:]
 
     return reply
-
