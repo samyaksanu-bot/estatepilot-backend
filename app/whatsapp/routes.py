@@ -71,10 +71,11 @@ async def receive_message(request: Request):
 
 reply = next_reply(text, state)
 
-        send_whatsapp_message(
-            to=from_number,
-            message=reply
-        )
+        if reply:
+    send_whatsapp_message(
+        to=from_number,
+        message=reply
+    )
 
     except Exception as e:
         print("❌ Error processing message:", str(e))
