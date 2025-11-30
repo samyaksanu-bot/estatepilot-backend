@@ -1,62 +1,59 @@
+# app/reply_engine.py
+
+import os
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+SYSTEM_PROMPT = """
+You are a calm, professional real estate advisor.
+Only answer questions related to this property.
+Do not repeat questions.
+Do not over-message.
+If the user shows interest in site visit, politely stop and hand over to a human.
+"""
+
 def generate_reply(text: str, state: dict) -> str | None:
     text = text.lower().strip()
+    state["messages_count"] += 1
 
-    # ✅ BLOCK BOT AFTER HANDOFF
-    if state.get("handoff_done"):
+    # HARD STOP conditions
+    if state.get("do_not_disturb"):
         return None
 
-    # ✅ IGNORE VERY SHORT OR NOISE MESSAGES
-    if len(text) <= 2 or text in ["ok", "okay", "cool", "no", "yes", "hmm"]:
-        return None
+    if any(x in text for x in ["stop", "don't message", "no thanks"]):
+        state["do_not_disturb"] = True
+        return "Sure 👍 I’ll stop here. Reach out anytime if needed."
 
-    # STEP 1: INTRO
-    if state["step"] == "intro":
-        state["step"] = "discover"
+    # Visit intent
+    if any(x in text for x in ["visit", "site", "come", "see"]):
+        state["visit_interest"] = True
+        state["handoff_done"] = True
         return (
-            "Hi 👋 Happy to help.\n\n"
-            "What would you like to know first?\n"
-            "1️⃣ Price range\n"
-            "2️⃣ Location\n"
-            "3️⃣ Project details"
+            "Perfect 👍\n"
+            "I’ll have our local advisor call you to confirm a suitable date and time.\n"
+            "They’ll take it forward from here."
         )
 
-    # STEP 2: DISCOVERY
-    if state["step"] == "discover":
-        if "price" in text or "budget" in text:
-            state["step"] = "budget"
-            return "Sure. What budget range are you considering?"
-
-        if "location" in text or "where" in text:
-            state["step"] = "location"
-            return "Which location are you looking at?"
-
-        if "detail" in text or "project" in text:
-            return (
-                "This is a gated project with clear titles and good connectivity.\n"
-                "Would you like to check price or location?"
-            )
-
-        return "Just to guide you better—are you checking price, location, or project details?"
-
-    # STEP 3: BUDGET
-    if state["step"] == "budget":
-        state["budget"] = text
-        state["step"] = "soft_visit"
+    # Limit AI spam
+    if state["messages_count"] > 6:
         return (
-            "That works 👍 Based on this budget, we have suitable options.\n\n"
-            "Would you like the location details or shall I help arrange a site visit?"
+            "I don’t want to overwhelm you 🙂\n"
+            "Let me know if you’d like a site visit or a quick call from our advisor."
         )
 
-    # STEP 4: LOCATION
-    if state["step"] == "location":
-        state["location"] = text
-        state["step"] = "soft_visit"
-        return (
-            f"Great choice. {text.title()} is a promising area.\n\n"
-            "Would you like price details or plan a site visit?"
+    # LLM call (ONLY when safe)
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": text}
+            ],
+            max_tokens=120
         )
+        return completion.choices[0].message.content.strip()
 
-    # STEP 5: SOFT VISIT (NON-PUSHY)
-    if state["step"] == "soft_visit":
-        if "visit" in text or "see" in text or "come" in text:
-            sta
+    except Exception as e:
+        return "I got that. Could you rephrase it once for me?"
+
