@@ -5,7 +5,7 @@ import traceback
 
 from app.whatsapp.sender import send_whatsapp_message
 from app.state import get_state
-from app.reply_engine import generate_reply
+from app.reply_engine import generate_reply  # ✅ correct import
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
@@ -35,7 +35,6 @@ async def receive_message(request: Request):
     try:
         payload = await request.json()
 
-        # ✅ Basic guards
         entry = payload.get("entry", [])
         if not entry:
             return {"status": "ignored"}
@@ -46,14 +45,10 @@ async def receive_message(request: Request):
 
         value = changes[0].get("value", {})
         messages = value.get("messages")
-
-        # Ignore delivery receipts, read receipts
         if not messages:
             return {"status": "ignored"}
 
         message = messages[0]
-
-        # ✅ Handle TEXT messages only
         if message.get("type") != "text":
             return {"status": "ignored"}
 
@@ -61,15 +56,18 @@ async def receive_message(request: Request):
         from_number = message.get("from")
         text = message["text"]["body"]
 
-        # ✅ Prevent duplicate replies (Meta retries)
+        # ✅ Prevent duplicate replies
         state = get_state(from_number)
         if state.get("last_message_id") == message_id:
             return {"status": "duplicate_ignored"}
 
         state["last_message_id"] = message_id
 
-        # ✅ Generate reply
-        reply = generate_reply(text, state)
+        # ✅ LLM / AI reply
+        reply = generate_reply(
+            user_id=from_number,
+            user_message=text
+        )
 
         if reply:
             send_whatsapp_message(from_number, reply)
@@ -77,7 +75,6 @@ async def receive_message(request: Request):
         return {"status": "received"}
 
     except Exception:
-        print("❌ ERROR in WhatsApp webhook")
+        print("❌ WhatsApp webhook error")
         traceback.print_exc()
         return {"status": "error"}
-        
