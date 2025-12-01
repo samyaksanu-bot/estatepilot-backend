@@ -3,5 +3,3 @@ uvicorn
 python-dotenv
 requests
 pydantic
-openai>=1.35.0
-openai>=1.0.0
