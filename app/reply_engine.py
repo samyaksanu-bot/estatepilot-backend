@@ -13,9 +13,9 @@ Do not over-message.
 If the user shows interest in site visit, politely stop and hand over to a human.
 """
 
-def generate_reply(text: str, state: dict) -> str | None:
-    text = text.lower().strip()
-    state["messages_count"] += 1
+def generate_reply(text, state):
+    print("🧠 reply_engine invoked")
+    print("🔤 Incoming text:", text)
 
     # HARD STOP conditions
     if state.get("do_not_disturb"):
