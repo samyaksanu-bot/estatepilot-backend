@@ -7,51 +7,48 @@ TEMPLATES = {
     "PRICE_QUERY": [
         {
             "reply": "The project starts from ₹{price}. Pricing depends on unit and floor.",
-            "followup": "Is this close to the budget you had in mind?"
+            "followup_type": "clarification",
+            "followup": "Is this budget close to what you were considering?"
         },
         {
-            "reply": "Starting price is around ₹{price}, with multiple options available.",
-            "followup": "Are you looking for self-use or investment?"
-        }
-    ],
-
-    "LOCATION_QUERY": [
-        {
-            "reply": "The project is located in a well-connected area with daily conveniences nearby.",
-            "followup": "Are you looking for something close to your workplace?"
+            "reply": "Starting prices are around ₹{price} with options across configurations.",
+            "followup_type": "preference",
+            "followup": "Are you mainly looking for self-use or investment?"
         },
         {
-            "reply": "It’s situated in a prime residential zone with smooth connectivity.",
-            "followup": "Would you prefer details on nearby schools and hospitals?"
-        }
-    ],
-
-    "AMENITIES_QUERY": [
+            "reply": "Base pricing begins at ₹{price}. Final cost varies based on choice.",
+            "followup_type": "assurance",
+            "followup": "If the location and quality are right, would this range work for you?"
+        },
         {
-            "reply": "The project offers essential amenities along with a peaceful environment.",
-            "followup": "Will this be for family living or investment?"
-        }
-    ],
-
-    "VISIT_INTENT": [
+            "reply": "The lowest available price point is ₹{price} at the moment.",
+            "followup_type": "comparison",
+            "followup": "Are you comparing this with any other project nearby?"
+        },
         {
-            "reply": "Sure, a site visit can be arranged at your convenience.",
-            "followup": "What day and time works best for you?"
-        }
-    ],
-
-    "CALLBACK_REQUEST": [
+            "reply": "Prices currently start from ₹{price}, depending on availability.",
+            "followup_type": "progression",
+            "followup": "Would you like me to share the exact location or project details?"
+        },
         {
-            "reply": "No problem, I can arrange a callback for you.",
-            "followup": "What would be a good time to call?"
+            "reply": "₹{price} is the current entry price for this project.",
+            "followup_type": "soft_probe",
+            "followup": "Is this within the range you’re comfortable exploring?"
+        },
+        {
+            "reply": "At present, ₹{price} is the starting range for available units.",
+            "followup_type": "context",
+            "followup": "Are you planning to move soon or is this for future planning?"
         }
     ]
+
+    # Other intents will follow the same structure
 }
 
 
 def generate_reply(intent: str, context: dict) -> str:
     if intent not in TEMPLATES:
-        return "Sure. Please let me know what details you’d like to know."
+        return "Sure, could you tell me a bit more about what you’re looking for?"
 
     template = random.choice(TEMPLATES[intent])
 
