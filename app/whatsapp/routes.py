@@ -1,37 +1,10 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import PlainTextResponse
-import os, json
+import traceback   # <-- TOP of file, once
 
-from app.whatsapp.sender import send_whatsapp_message
-from app.state import get_state
-from app.reply_engine import generate_reply
-
-router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
-
-VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
-
-# --------------------------------------------------
-# WEBHOOK VERIFY
-# --------------------------------------------------
-@router.get("/webhook")
-async def verify_webhook(request: Request):
-    params = request.query_params
-    if (
-        params.get("hub.mode") == "subscribe"
-        and params.get("hub.verify_token") == VERIFY_TOKEN
-    ):
-        return PlainTextResponse(params.get("hub.challenge"))
-
-    return PlainTextResponse("Verification failed", status_code=403)
-
-# --------------------------------------------------
-# INCOMING MESSAGES
-# --------------------------------------------------
 @router.post("/webhook")
 async def receive_message(request: Request):
-    payload = await request.json()
-
     try:
+        payload = await request.json()
+
         entry = payload.get("entry", [])
         if not entry:
             return {"status": "ignored"}
@@ -54,8 +27,10 @@ async def receive_message(request: Request):
         if reply:
             send_whatsapp_message(from_number, reply)
 
-    except Exception as e:
-        print("❌ Error processing WhatsApp message:", str(e))
+        return {"status": "received"}
 
-    return {"status": "received"}
+    except Exception:
+        print("❌ FULL ERROR TRACEBACK:")
+        traceback.print_exc()   # <-- THIS exposes the real bug
+        return {"status": "error"}
 
