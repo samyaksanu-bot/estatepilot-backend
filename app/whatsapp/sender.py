@@ -1,32 +1,40 @@
-import requests
-import os
+# app/whatsapp/sender.py
 
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
+import os
+import requests
+
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
 PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+
+GRAPH_URL = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
+
 
 def send_whatsapp_message(to: str, message: str):
     """
-    Send a text message via WhatsApp Cloud API
+    Canonical WhatsApp sender.
+    DO NOT rename params.
+    Always call with positional args.
     """
-    url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
+
+    if not WHATSAPP_ACCESS_TOKEN:
+        raise ValueError("WHATSAPP_ACCESS_TOKEN is missing")
 
     payload = {
         "messaging_product": "whatsapp",
         "to": to,
         "type": "text",
-        "text": {
-            "body": message
-        }
+        "text": {"body": message},
     }
 
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
     }
 
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(GRAPH_URL, json=payload, headers=headers)
 
     if response.status_code >= 400:
         print("❌ WhatsApp send failed:", response.text)
 
     return response.json()
+
