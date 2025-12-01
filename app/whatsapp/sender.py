@@ -1,3 +1,4 @@
+print("✅ WHATSAPP_ACCESS_TOKEN exists:", bool(os.getenv("WHATSAPP_ACCESS_TOKEN")))
 # app/whatsapp/sender.py
 
 import os
