@@ -37,7 +37,6 @@ async def receive_message(request: Request):
     try:
         payload = await request.json()
 
-        # ---- Basic guards ----
         entry = payload.get("entry", [])
         if not entry:
             return {"status": "ignored"}
@@ -47,45 +46,57 @@ async def receive_message(request: Request):
             return {"status": "ignored"}
 
         value = changes[0].get("value", {})
-        messages = value.get("messages")
+        messages = value.get("messages", [])
         if not messages:
             return {"status": "ignored"}
 
         message = messages[0]
+
+        # ✅ Only text messages
         if message.get("type") != "text":
             return {"status": "ignored"}
 
-        # ---- Extract message ----
-        from_number = message.get("from")
-        user_text = message["text"]["body"].strip().lower()
+        from_number = message["from"]
+        user_text = message["text"]["body"].strip()
 
-        # ---- Load user state ----
-        from app.state import get_state
-        state = get_state(from_number)
-
-        # ---- INTENT ENGINE (STEP 2 STARTS HERE) ----
+        # ==============================
+        # ✅ STEP 1: Detect intent
+        # ==============================
         from app.intent_engine import detect_intent
         intent = detect_intent(user_text)
 
-        # ---- DEPTH TRACKING ----
-        depth_key = f"{intent}_depth"
-        depth = state.get(depth_key, 0)
+        # ==============================
+        # ✅ STEP 2: Update state + score
+        # ==============================
+        from app.state import update_state_with_intent
+        state = update_state_with_intent(from_number, intent)
 
-        # ---- TEMPLATE RESPONSE ----
+        # ==============================
+        # ✅ STEP 3: Template response
+        # ==============================
         from app.template_engine import get_template
-        reply_text = get_template(intent, depth)
+        reply = get_template(intent, state)
 
-        # ---- Increase depth so next reply differs ----
-        state[depth_key] = depth + 1
+        # ==============================
+        # ✅ STEP 4: AI fallback (ONLY if needed)
+        # ==============================
+        if not reply:
+            from app.reply_engine import fallback_ai_reply
+            reply = fallback_ai_reply(
+                user_text=user_text,
+                state=state
+            )
 
-        # ---- Send reply ----
+        # ==============================
+        # ✅ STEP 5: Send WhatsApp reply
+        # ==============================
         from app.whatsapp.sender import send_whatsapp_message
-        send_whatsapp_message(from_number, reply_text)
+        send_whatsapp_message(from_number, reply)
 
         return {"status": "received"}
 
     except Exception as e:
         import traceback
-        print("❌ WhatsApp webhook error:")
+        print("❌ WhatsApp webhook error")
         traceback.print_exc()
         return {"status": "error"}
