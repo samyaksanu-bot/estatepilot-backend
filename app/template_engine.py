@@ -68,14 +68,16 @@ TEMPLATES = {
 # TEMPLATE SELECTOR (DEPTH-AWARE)
 # --------------------------------
 
-def get_template(intent: str, depth: int) -> str:
-    responses = TEMPLATES.get(intent)
+def get_template(intent: str, state: dict) -> str | None:
+    depth = state.get("intent_depth", {}).get(intent, 0)
+    options = TEMPLATES.get(intent)
 
-    if not responses:
-        # fallback
-        return random.choice(TEMPLATES["vague"])
+    if not options:
+        return None
 
-    # rotate safely by depth
-    index = depth % len(responses)
-    return responses[index]
+    reply = options[depth % len(options)]
 
+    state.setdefault("intent_depth", {})
+    state["intent_depth"][intent] = depth + 1
+
+    return reply
