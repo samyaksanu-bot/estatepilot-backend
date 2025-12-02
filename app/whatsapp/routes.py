@@ -1,26 +1,33 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
-import os
 import traceback
+import os
 
+# -------------------------------
+# Internal imports (CORE ENGINE)
+# -------------------------------
 from app.whatsapp.sender import send_whatsapp_message
 from app.intent_engine import detect_intent
-from app.state import get_state, update_state_with_intent, mark_handoff
 from app.template_engine import get_template
 from app.reply_engine import ai_fallback_reply
-from app.reply_engine import generate_reply   # ✅ ONE reply engine only
+from app.state import (
+    get_state,
+    update_state_with_intent,
+    mark_handoff
+)
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 
 
-# ------------------------------------------------
-# Webhook verification (GET)
-# ------------------------------------------------
+# ---------------------------------------------------
+# 1️⃣ WEBHOOK VERIFICATION (META REQUIREMENT)
+# ---------------------------------------------------
 @router.get("/webhook")
 async def verify_webhook(request: Request):
     params = request.query_params
+
     mode = params.get("hub.mode")
     token = params.get("hub.verify_token")
     challenge = params.get("hub.challenge")
@@ -31,14 +38,17 @@ async def verify_webhook(request: Request):
     return PlainTextResponse("Verification failed", status_code=403)
 
 
-# ------------------------------------------------
-# Incoming messages (POST)
-# ------------------------------------------------
+# ---------------------------------------------------
+# 2️⃣ INCOMING WHATSAPP MESSAGES
+# ---------------------------------------------------
 @router.post("/webhook")
 async def receive_message(request: Request):
     try:
         payload = await request.json()
 
+        # -------------------------------
+        # Basic Meta Payload Guards
+        # -------------------------------
         entry = payload.get("entry", [])
         if not entry:
             return {"status": "ignored"}
@@ -50,11 +60,12 @@ async def receive_message(request: Request):
         value = changes[0].get("value", {})
         messages = value.get("messages")
         if not messages:
+            # delivery / read receipts
             return {"status": "ignored"}
 
         message = messages[0]
 
-        # ✅ Only text messages
+        # Only handle text messages
         if message.get("type") != "text":
             return {"status": "ignored"}
 
@@ -65,34 +76,44 @@ async def receive_message(request: Request):
         if not from_number or not user_text:
             return {"status": "ignored"}
 
-        # ----------------------------------------
-        # STATE SAFETY
-        # ----------------------------------------
+        # -------------------------------
+        # Load / Initialize State
+        # -------------------------------
         state = get_state(from_number)
 
-        # Prevent duplicate Meta retries
+        # Deduplication (Meta retries)
         if state.get("last_message_id") == message_id:
             return {"status": "duplicate_ignored"}
 
         state["last_message_id"] = message_id
 
-        # ----------------------------------------
-        # STEP 1: Detect Intent
-        # ----------------------------------------
+        # If human already took over, stop bot
+        if state.get("handoff_done"):
+            return {"status": "agent_handling"}
+
+        # -------------------------------
+        # STEP 1️⃣ Intent Detection
+        # -------------------------------
         intent = detect_intent(user_text)
 
-        # ----------------------------------------
-        # STEP 2: Update score & rank
-        # ----------------------------------------
+        # -------------------------------
+        # STEP 2️⃣ State Update + Ranking
+        # -------------------------------
         state = update_state_with_intent(from_number, intent)
 
-        # ----------------------------------------
-        # STEP 3: HUMAN HANDOFF LOGIC ✅
-        # ----------------------------------------
+        # ------------------------------------------------
+        # STEP 3️⃣ HUMAN HANDOFF LOGIC (CRITICAL)
+        # ------------------------------------------------
+        explicit_handoff_keywords = [
+            "call me", "call", "agent",
+            "visit", "site visit",
+            "baat karao", "contact"
+        ]
+
         if (
             state["rank"] == "hot"
             or intent == "site_visit"
-            or any(x in user_text for x in ["call", "visit", "agent", "site"])
+            or any(k in user_text for k in explicit_handoff_keywords)
         ):
             if not state.get("handoff_done"):
                 send_whatsapp_message(
@@ -100,21 +121,22 @@ async def receive_message(request: Request):
                     "Perfect 👍 I’ll have our advisor call you shortly to confirm the details."
                 )
                 mark_handoff(from_number)
+
             return {"status": "handoff"}
 
         # ----------------------------------------
-        # STEP 4: Template-based reply
+        # STEP 4️⃣ TEMPLATE RESPONSE
         # ----------------------------------------
         reply_text = get_template(intent, state)
 
         # ----------------------------------------
-        # STEP 5: AI fallback (only if template fails)
+        # STEP 5️⃣ AI FALLBACK (ONLY IF NEEDED)
         # ----------------------------------------
         if not reply_text:
             reply_text = ai_fallback_reply(user_text)
 
         # ----------------------------------------
-        # STEP 6: Send WhatsApp reply
+        # STEP 6️⃣ SEND FINAL MESSAGE
         # ----------------------------------------
         if reply_text:
             send_whatsapp_message(from_number, reply_text)
