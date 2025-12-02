@@ -1,45 +1,77 @@
-# app/intent_engine.py
-
 import re
 
-INTENT_PATTERNS = {
+# --------------------------------
+# INTENT KEYWORDS (EN + HINGLISH + HINDI)
+# --------------------------------
+
+INTENT_KEYWORDS = {
+
+    "greeting": [
+        "hi", "hello", "hey", "namaste", "hii", "hlw",
+        "good morning", "good evening"
+    ],
+
     "price_query": [
-        r"price", r"cost", r"budget", r"rate",
-        r"kitna", r"daam", r"kitne ka", r"starting"
+        "price", "cost", "budget", "pricing", "rate",
+        "kitna", "kitne ka", "price kya", "cost kya",
+        "starting price", "range", "budget batao"
     ],
+
     "location_query": [
-        r"location", r"area", r"address", r"kahan",
-        r"kahaan", r"kis area", r"place", r"near"
+        "location", "where", "area", "place",
+        "kaha", "kidhar", "kis area", "location kya",
+        "address", "map"
     ],
+
+    "configuration_query": [
+        "bhk", "2bhk", "3bhk", "1bhk",
+        "flat size", "square feet",
+        "rooms", "bedroom",
+        "kitne room", "ghar size"
+    ],
+
+    "amenities_query": [
+        "amenities", "facilities",
+        "gym", "park", "parking", "lift",
+        "swimming pool", "security",
+        "kya kya milega", "facility kya"
+    ],
+
     "site_visit": [
-        r"visit", r"site visit", r"dekhna", r"mil sakte",
-        r"kab aa sakte", r"onsite"
+        "site visit", "visit", "dekhna", "dekh sakta",
+        "location visit", "project visit",
+        "kab dekh sakte", "site dikhao"
     ],
-    "configuration": [
-        r"bhk", r"flat size", r"area sqft", r"size",
-        r"2bhk", r"3bhk"
+
+    "purchase_intent_high": [
+        "book", "booking", "final", "buy",
+        "purchase", "advance",
+        "ready to buy", "sure buy",
+        "serious", "confirm", "payment"
     ],
-    "amenities": [
-        r"amenities", r"facilities", r"park",
-        r"gym", r"lift", r"power backup"
-    ],
+
     "loan_query": [
-        r"loan", r"emi", r"bank", r"home loan",
-        r"finance", r"interest"
-    ],
-    "timeline": [
-        r"ready", r"possession", r"handover",
-        r"kab milega", r"completion"
+        "loan", "emi", "bank loan",
+        "finance", "home loan",
+        "emi kitna", "loan milega"
     ]
 }
 
+# --------------------------------
+# INTENT DETECTOR
+# --------------------------------
 
-def detect_intent(text: str) -> str | None:
-    text = text.lower()
+def detect_intent(text: str) -> str:
+    if not text:
+        return "vague"
 
-    for intent, patterns in INTENT_PATTERNS.items():
-        for pattern in patterns:
-            if re.search(pattern, text):
+    text = text.lower().strip()
+
+    for intent, keywords in INTENT_KEYWORDS.items():
+        for kw in keywords:
+            # strict word boundary match
+            if re.search(rf"\b{re.escape(kw)}\b", text):
                 return intent
 
-    return None
+    return "vague"
+
