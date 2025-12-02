@@ -4,6 +4,7 @@ import os
 import traceback
 
 from app.whatsapp.sender import send_whatsapp_message
+from app.intent_engine import detect_intent
 from app.state import get_state
 from app.reply_engine import generate_reply   # ✅ ONE reply engine only
 
@@ -57,29 +58,28 @@ async def receive_message(request: Request):
         from_number = message.get("from")
         user_text = message["text"]["body"]
 
-        # ✅ State
-        state = get_state(from_number)
+      # Optional: dedupe using state (Meta retry protection)
+        try:
+            state = get_state(from_number)
+            if state.get("last_message_id") == message_id:
+                return {"status": "duplicate_ignored"}
+            state["last_message_id"] = message_id
+        except Exception:
+            # If state store fails, we still answer – don’t crash webhook
+            state = {}
 
-        # ✅ Prevent Meta retry duplicates
-        if state.get("last_message_id") == message_id:
-            return {"status": "duplicate"}
+        # 1) Detect intent
+        intent = detect_intent(user_text)
 
-        state["last_message_id"] = message_id
+        # 2) Generate reply from template engine
+        reply_text = generate_reply(intent=intent, user_text=user_text)
 
-        # ✅ ONE reply engine
-        reply = generate_reply(
-            user_id=from_number,
-            user_message=user_text,
-            state=state
-        )
-
-        if reply:
-            send_whatsapp_message(from_number, reply)
+        # 3) Send WhatsApp message
+        send_whatsapp_message(from_number, reply_text)
 
         return {"status": "received"}
 
-    except Exception:
-        print("❌ WhatsApp webhook error")
-        traceback.print_exc()
+    except Exception as e:
+        print("❌ WhatsApp webhook error:", str(e))
         return {"status": "error"}
-
+      
