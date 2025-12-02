@@ -138,14 +138,13 @@ def detect_intent(text: str) -> str:
 # MAIN ENTRY POINT
 # -----------------------------
 
-def generate_reply(user_id: str, text: str, intent=None, depth=0) -> str:
-    """
-    Safe rule-based reply engine (EN + Hinglish)
-    """
+# app/reply_engine.py
 
-    intent = intent or detect_intent(text)
-
-    template_pool = TEMPLATES.get(intent) or TEMPLATES["FALLBACK"]
-    reply = random.choice(template_pool)
-
-    return reply
+def generate_reply(
+    intent=None,
+    context=None,
+    depth=0,
+    user_id=None,
+    user_message=None
+):
+    return "Thanks for your interest. Our team will assist you shortly."
