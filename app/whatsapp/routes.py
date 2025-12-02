@@ -5,7 +5,9 @@ import traceback
 
 from app.whatsapp.sender import send_whatsapp_message
 from app.intent_engine import detect_intent
-from app.state import get_state
+from app.state import get_state, update_state_with_intent, mark_handoff
+from app.template_engine import get_template
+from app.reply_engine import ai_fallback_reply
 from app.reply_engine import generate_reply   # ✅ ONE reply engine only
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
