@@ -46,11 +46,17 @@ TEMPLATES = {
 }
 
 
-def generate_reply(intent: str, context: dict) -> str:
+def generate_reply(intent: str, context: dict, depth: int) -> str:
     if intent not in TEMPLATES:
         return "Sure, could you tell me a bit more about what you’re looking for?"
 
-    template = random.choice(TEMPLATES[intent])
+    templates = TEMPLATES[intent]
+
+    # Escalation control
+    if depth >= len(templates):
+        depth = len(templates) - 1
+
+    template = templates[depth]
 
     reply = template["reply"].format(**context)
     followup = template["followup"]
