@@ -56,6 +56,29 @@ async def receive_message(request: Request):
         from_number = message.get("from")
         text = message["text"]["body"]
 
+        # 1️⃣ Detect intent
+intent = detect_intent(text)
+
+# 2️⃣ Update intent depth
+update_intent_depth(from_number, intent)
+
+# 3️⃣ Update score + rank
+state = update_lead_state(from_number, intent, text)
+
+# 4️⃣ Get depth for reply selection
+depth = get_intent_depth(from_number, intent)
+
+# 5️⃣ Generate reply
+reply = generate_reply(
+    intent=intent,
+    context={"price": "45 lakh"},
+    depth=depth - 1
+)
+
+send_whatsapp_message(from_number, reply)
+
+print("📊 LEAD STATUS:", state["rank"], "SCORE:", state["score"])
+
         # ✅ Prevent duplicate replies
         state = get_state(from_number)
         if state.get("last_message_id") == message_id:
