@@ -30,3 +30,14 @@ def update_intent_depth(user_id: str, intent: str):
 def get_intent_depth(user_id: str, intent: str) -> int:
     state = get_user_state(user_id)
     return state["intent_depth"].get(intent, 0)
+
+
+def update_lead_state(user_id: str, intent: str, text: str):
+    from app.brain.rank_engine import update_score, update_rank
+
+    state = get_user_state(user_id)
+
+    update_score(state, intent, text)
+    update_rank(state)
+
+    return state
