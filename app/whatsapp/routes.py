@@ -37,6 +37,7 @@ async def receive_message(request: Request):
     try:
         payload = await request.json()
 
+        # ---- Basic guards ----
         entry = payload.get("entry", [])
         if not entry:
             return {"status": "ignored"}
@@ -54,32 +55,37 @@ async def receive_message(request: Request):
         if message.get("type") != "text":
             return {"status": "ignored"}
 
-        message_id = message.get("id")
+        # ---- Extract message ----
         from_number = message.get("from")
-        user_text = message["text"]["body"]
+        user_text = message["text"]["body"].strip().lower()
 
-      # Optional: dedupe using state (Meta retry protection)
-        try:
-            state = get_state(from_number)
-            if state.get("last_message_id") == message_id:
-                return {"status": "duplicate_ignored"}
-            state["last_message_id"] = message_id
-        except Exception:
-            # If state store fails, we still answer – don’t crash webhook
-            state = {}
+        # ---- Load user state ----
+        from app.state import get_state
+        state = get_state(from_number)
 
-        # 1) Detect intent
+        # ---- INTENT ENGINE (STEP 2 STARTS HERE) ----
+        from app.intent_engine import detect_intent
         intent = detect_intent(user_text)
 
-        # 2) Generate reply from template engine
-        reply_text = generate_reply(intent=intent, user_text=user_text)
+        # ---- DEPTH TRACKING ----
+        depth_key = f"{intent}_depth"
+        depth = state.get(depth_key, 0)
 
-        # 3) Send WhatsApp message
+        # ---- TEMPLATE RESPONSE ----
+        from app.template_engine import get_template
+        reply_text = get_template(intent, depth)
+
+        # ---- Increase depth so next reply differs ----
+        state[depth_key] = depth + 1
+
+        # ---- Send reply ----
+        from app.whatsapp.sender import send_whatsapp_message
         send_whatsapp_message(from_number, reply_text)
 
         return {"status": "received"}
 
     except Exception as e:
-        print("❌ WhatsApp webhook error:", str(e))
+        import traceback
+        print("❌ WhatsApp webhook error:")
+        traceback.print_exc()
         return {"status": "error"}
-      
