@@ -46,7 +46,7 @@ async def receive_message(request: Request):
             return {"status": "ignored"}
 
         value = changes[0].get("value", {})
-        messages = value.get("messages", [])
+        messages = value.get("messages")
         if not messages:
             return {"status": "ignored"}
 
@@ -56,47 +56,70 @@ async def receive_message(request: Request):
         if message.get("type") != "text":
             return {"status": "ignored"}
 
-        from_number = message["from"]
-        user_text = message["text"]["body"].strip()
+        from_number = message.get("from")
+        user_text = message.get("text", {}).get("body", "").strip().lower()
+        message_id = message.get("id")
 
-        # ==============================
-        # ✅ STEP 1: Detect intent
-        # ==============================
-        from app.intent_engine import detect_intent
+        if not from_number or not user_text:
+            return {"status": "ignored"}
+
+        # ----------------------------------------
+        # STATE SAFETY
+        # ----------------------------------------
+        state = get_state(from_number)
+
+        # Prevent duplicate Meta retries
+        if state.get("last_message_id") == message_id:
+            return {"status": "duplicate_ignored"}
+
+        state["last_message_id"] = message_id
+
+        # ----------------------------------------
+        # STEP 1: Detect Intent
+        # ----------------------------------------
         intent = detect_intent(user_text)
 
-        # ==============================
-        # ✅ STEP 2: Update state + score
-        # ==============================
-        from app.state import update_state_with_intent
+        # ----------------------------------------
+        # STEP 2: Update score & rank
+        # ----------------------------------------
         state = update_state_with_intent(from_number, intent)
 
-        # ==============================
-        # ✅ STEP 3: Template response
-        # ==============================
-        from app.template_engine import get_template
-        reply = get_template(intent, state)
+        # ----------------------------------------
+        # STEP 3: HUMAN HANDOFF LOGIC ✅
+        # ----------------------------------------
+        if (
+            state["rank"] == "hot"
+            or intent == "site_visit"
+            or any(x in user_text for x in ["call", "visit", "agent", "site"])
+        ):
+            if not state.get("handoff_done"):
+                send_whatsapp_message(
+                    from_number,
+                    "Perfect 👍 I’ll have our advisor call you shortly to confirm the details."
+                )
+                mark_handoff(from_number)
+            return {"status": "handoff"}
 
-        # ==============================
-        # ✅ STEP 4: AI fallback (ONLY if needed)
-        # ==============================
-        if not reply:
-            from app.reply_engine import fallback_ai_reply
-            reply = fallback_ai_reply(
-                user_text=user_text,
-                state=state
-            )
+        # ----------------------------------------
+        # STEP 4: Template-based reply
+        # ----------------------------------------
+        reply_text = get_template(intent, state)
 
-        # ==============================
-        # ✅ STEP 5: Send WhatsApp reply
-        # ==============================
-        from app.whatsapp.sender import send_whatsapp_message
-        send_whatsapp_message(from_number, reply)
+        # ----------------------------------------
+        # STEP 5: AI fallback (only if template fails)
+        # ----------------------------------------
+        if not reply_text:
+            reply_text = ai_fallback_reply(user_text)
+
+        # ----------------------------------------
+        # STEP 6: Send WhatsApp reply
+        # ----------------------------------------
+        if reply_text:
+            send_whatsapp_message(from_number, reply_text)
 
         return {"status": "received"}
 
-    except Exception as e:
-        import traceback
+    except Exception:
         print("❌ WhatsApp webhook error")
         traceback.print_exc()
         return {"status": "error"}
