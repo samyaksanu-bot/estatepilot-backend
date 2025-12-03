@@ -1,3 +1,4 @@
+from app.campaign_engine.campaign_preview import generate_campaign_preview
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse
 import traceback
@@ -147,3 +148,13 @@ async def receive_message(request: Request):
         print("❌ WhatsApp webhook error")
         traceback.print_exc()
         return {"status": "error"}
+        
+@router.post("/debug/campaign-preview")
+async def debug_campaign_preview(project: dict):
+    """
+    DEBUG ONLY
+    Test EstatePilot Campaign Engine.
+    This does NOT touch Meta or WhatsApp.
+    """
+    print("✅ Campaign Preview Engine Triggered", project)
+    return generate_campaign_preview(project)
