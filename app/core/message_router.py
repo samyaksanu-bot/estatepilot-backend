@@ -35,3 +35,14 @@ def decide_reply(message_text: str, config: dict) -> dict:
             sales_number=client["sales_number"])}
 
     return {"type": "reply", "text": replies["fallback"]}
+    
+from app.campaign_engine.campaign_preview import generate_campaign_preview
+
+
+def test_campaign_preview(payload: dict):
+    """
+    TEMP TEST FUNCTION
+    This does not touch WhatsApp or Meta.
+    """
+    print("✅ Campaign Preview Test Triggered")
+    return generate_campaign_preview(payload)
