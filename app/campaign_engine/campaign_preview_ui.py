@@ -1,64 +1,22 @@
-# app/campaign_engine/campaign_preview_ui.py
+from typing import Dict
 
 def build_campaign_preview_ui(
-    project: dict,
-    graphic_formula: dict,
-    template_selection: dict,
-    render_payload: dict
-) -> dict:
-    """
-    Builds a human-readable campaign preview
-    that feels like a professional ad proof.
-    """
+    project: Dict,
+    graphic_formula: Dict,
+    template_selection: Dict,
+    render_payload: Dict
+) -> Dict:
 
-    preview = {
+    return {
         "preview_header": {
-            "project_name": project.get("name"),
-            "property_type": project.get("type"),
-            "location": project.get("location"),
+            "project_name": project["name"],
+            "location": project["location"]
         },
-
         "visual_overview": {
             "template_used": render_payload["template_id"],
-            "canvas": f'{render_payload["canvas"]["width"]}x{render_payload["canvas"]["height"]}',
-            "visual_style": graphic_formula["final_visual_recipe"]["design_tone"],
-            "primary_visual": graphic_formula["final_visual_recipe"]["primary_visual"],
+            "canvas": render_payload["canvas"]
         },
-
-        "ad_text_blocks": [
-            {
-                "label": layer["type"],
-                "text": layer["text"],
-                "position": layer["position"]
-            }
-            for layer in render_payload["text_layers"]
-        ],
-
-        "call_to_action": {
-            "cta_text": next(
-                (layer["text"] for layer in render_payload["text_layers"] if layer["type"] == "cta"),
-                None
-            )
-        },
-
-        "builder_overrides": graphic_formula["builder_overrides_applied"],
-
+        "ad_text_blocks": render_payload["text_layers"],
         "risk_warnings": graphic_formula["risk_warnings"],
-
-        "approval_section": {
-            "status": "pending",
-            "builder_actions_available": [
-                "Change headline",
-                "Toggle price visibility",
-                "Request different imagery",
-                "Approve & proceed"
-            ]
-        },
-
-        "engine_note": (
-            "This preview represents how your ad will appear structurally. "
-            "Final visuals will be rendered after approval."
-        )
+        "status": "PENDING_APPROVAL"
     }
-
-    return preview
