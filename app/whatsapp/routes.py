@@ -156,15 +156,12 @@ async def debug_campaign_preview(project: dict):
     Returns a human-readable ad preview for builders.
     """
 
-    # --- imports (local to avoid circular issues) ---
-    from app.campaign_engine.strategy import decide_campaign_strategy
-    from app.campaign_engine.intent_profile import build_buyer_intent_profile
-    from app.campaign_engine.creative_brief import generate_creative_brief
-    from app.campaign_engine.graphic_formula import build_graphic_formula
-    from app.campaign_engine.template_selector import select_visual_template
-    from app.campaign_engine.static_image_generator import generate_static_image_spec
-    from app.campaign_engine.template_renderer import render_static_template
-    from app.campaign_engine.campaign_preview_ui import build_campaign_preview_ui
+   # SAFE IMPORTS — ONLY EXISTING FILES
+from app.campaign_engine.campaign_preview_ui import build_campaign_preview_ui
+from app.campaign_engine.template_selector import select_visual_template
+from app.campaign_engine.static_image_generator import generate_static_image_spec
+from app.campaign_engine.template_renderer import render_static_template
+
 
     print("✅ Live Campaign Preview UI Triggered")
 
