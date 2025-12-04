@@ -21,4 +21,3 @@ def generate_static_image_spec(
         "visual_elements": template_selection["selected_template"]["visual_blocks"],
         "quality_checks": ["readable", "not_misleading"]
     }
-
