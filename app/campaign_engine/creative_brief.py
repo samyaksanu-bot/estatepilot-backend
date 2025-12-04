@@ -1,9 +1,9 @@
 # app/campaign_engine/graphic_formula.py
-
+from typing import Dict, Optional
 def build_graphic_formula(
     creative_brief: dict,
     intent_profile: dict,
-    builder_overrides: dict | None = None
+    builder_overrides: Optional[Dict] = None
 ) -> dict:
     """
     Final decision layer before any graphic is created.
@@ -76,3 +76,16 @@ def build_graphic_formula(
             "and will improve over time based on performance."
         )
     }
+# ✅ COMPATIBILITY ALIAS (DO NOT REMOVE)
+# Required for campaign_preview imports
+def generate_creative_brief(project, intent_profile=None):
+    """
+    Compatibility wrapper to prevent ImportError.
+    Internally routes to existing logic.
+    """
+    # If intent_profile is not provided, assume project already contains it
+    return build_graphic_formula(
+        creative_brief=project,
+        intent_profile=intent_profile or {},
+        builder_overrides=None
+    )
