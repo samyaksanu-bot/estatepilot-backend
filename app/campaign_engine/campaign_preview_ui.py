@@ -6,17 +6,16 @@ def build_campaign_preview_ui(
     template_selection: Dict,
     render_payload: Dict
 ) -> Dict:
-
     return {
-        "preview_header": {
-            "project_name": project["name"],
-            "location": project["location"]
+        "preview": {
+            "project": {
+                "name": project.get("name"),
+                "location": project.get("location"),
+                "type": project.get("type")
+            },
+            "template_used": template_selection.get("selected_template", {}),
+            "visual_layers": render_payload.get("visual_layers", []),
+            "text_layers": render_payload.get("text_layers", []),
         },
-        "visual_overview": {
-            "template_used": render_payload["template_id"],
-            "canvas": render_payload["canvas"]
-        },
-        "ad_text_blocks": render_payload["text_layers"],
-        "risk_warnings": graphic_formula["risk_warnings"],
-        "status": "PENDING_APPROVAL"
+        "status": "PREVIEW_OK"
     }
