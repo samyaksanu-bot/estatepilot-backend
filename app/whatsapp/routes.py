@@ -149,53 +149,16 @@ async def receive_message(request: Request):
         traceback.print_exc()
         return {"status": "error"}
         
-@router.post("/debug/campaign-preview")
+@router.post("/whatsapp/debug/campaign-preview")
 async def debug_campaign_preview(project: dict):
-    """
-    DEBUG: Live Campaign Preview UI
-    Returns a human-readable ad preview for builders.
-    """
-
-   # SAFE IMPORTS — ONLY EXISTING FILES
-from app.campaign_engine.campaign_preview_ui import build_campaign_preview_ui
-from app.campaign_engine.template_selector import select_visual_template
-from app.campaign_engine.static_image_generator import generate_static_image_spec
-from app.campaign_engine.template_renderer import render_static_template
-
-
     print("✅ Live Campaign Preview UI Triggered")
 
-    # --- 1. campaign brain ---
-    strategy = decide_campaign_strategy(project)
-    intent_profile = build_buyer_intent_profile(project, strategy)
-    creative_brief = generate_creative_brief(project, intent_profile)
+    return {
+        "status": "OK",
+        "message": "Campaign preview endpoint reached successfully",
+        "received_project": project
+    }
 
-    # --- 2. builder overrides (empty for now) ---
-    builder_overrides = {}
-
-    # --- 3. graphic decision ---
-    graphic_formula = build_graphic_formula(
-        creative_brief=creative_brief,
-        intent_profile=intent_profile,
-        builder_overrides=builder_overrides
-    )
-
-    # --- 4. template selection ---
-    template_selection = select_visual_template(graphic_formula)
-
-    # --- 5. static image spec ---
-    image_spec = generate_static_image_spec(
-        graphic_formula=graphic_formula,
-        template_selection=template_selection,
-        project=project
-    )
-
-    # --- 6. render payload (no AI, template only) ---
-    render_payload = render_static_template(
-        image_spec=image_spec,
-        template_selection=template_selection,
-        project_assets={}
-    )
 
     # --- 7. final HUMAN-READABLE PREVIEW ---
     preview_ui = build_campaign_preview_ui(
