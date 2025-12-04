@@ -1,32 +1,26 @@
-# app/campaign_engine/campaign_preview.py
-
-from app.campaign_engine.strategy import decide_campaign_strategy
-from app.campaign_engine.intent_profile import build_buyer_intent_profile
+from app.campaign_engine.intent_profile import build_intent_profile
 from app.campaign_engine.creative_brief import generate_creative_brief
-from app.campaign_engine.caption_generator import generate_caption
-from app.campaign_engine.audience_builder import build_audience
+from app.campaign_engine.audience_builder import build_audience_plan
+from app.campaign_engine.strategy import build_campaign_strategy
 
 
 def generate_campaign_preview(project: dict) -> dict:
     """
-    SAFE preview generator.
-    Never crashes on missing intent profile.
+    SAFE campaign preview generator.
+    Nothing runs at import time.
     """
 
-    try:
-       creative_brief = generate_creative_brief(
-    project=project,
-    intent_profile=intent_profile
-)
+    # Step 1: intent inference
+    intent_profile = build_intent_profile(project)
 
-    except Exception as e:
-        return {
-            "status": "ERROR",
-            "reason": "creative_brief_failed",
-            "details": str(e),
-        }
+    # Step 2: strategy
+    strategy = build_campaign_strategy(intent_profile)
 
-    return {
-        "status": "OK",
-        "creative_decision": creative_decision,
-    }
+    # Step 3: creative
+    creative_brief = generate_creative_brief(
+        project=project,
+        intent_profile=intent_profile
+    )
+
+    # Step 4: audience
+    audience_plan = build_audi
