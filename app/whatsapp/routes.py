@@ -1,5 +1,6 @@
-from app.campaign_engine.campaign_preview import generate_campaign_preview
+
 from fastapi import APIRouter, Request
+from app.campaign_engine.campaign_preview import generate_campaign_preview
 from fastapi.responses import PlainTextResponse
 import traceback
 import os
@@ -169,3 +170,14 @@ async def debug_campaign_preview(project: dict):
     )
 
     return preview_ui
+    @router.post("/debug/campaign-preview")
+async def debug_campaign_preview(payload: dict):
+    """
+    Debug-only endpoint.
+    Does NOT touch Meta or WhatsApp.
+    """
+    print("✅ Debug campaign preview hit")
+
+    preview = generate_campaign_preview(payload)
+
+    return preview
