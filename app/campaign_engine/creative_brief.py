@@ -1,28 +1,25 @@
-def generate_creative_brief(
-    project: dict,
-    intent_profile: dict
-) -> dict:
+def generate_creative_brief(project: dict, intent_profile: dict) -> dict:
     """
-    Canonical creative brief generator.
-    Depends on BOTH project data and buyer intent.
-    This function must never crash.
+    Final, safe creative brief generator.
+    Depends on BOTH project + intent_profile.
+    Guaranteed no NameError / KeyError.
     """
 
-    property_type = (
-        intent_profile.get("property_type")
-        or project.get("type")
-        or "flat"
+    # --- safe extraction ---
+    property_type = intent_profile.get(
+        "property_type",
+        project.get("type", "flat")
     )
 
-    location = (
-        intent_profile.get("location")
-        or project.get("location")
-        or "Location not specified"
+    location = intent_profile.get(
+        "location",
+        project.get("location", "Location not specified")
     )
 
-    budget_min = intent_profile.get("budget_min", project.get("price_min_lakh", "—"))
-    budget_max = intent_profile.get("budget_max", project.get("price_max_lakh", "—"))
+    budget_min = project.get("price_min_lakh", "—")
+    budget_max = project.get("price_max_lakh", "—")
 
+    # --- visual logic ---
     if property_type == "flat":
         visual_layout = "front elevation + amenities"
     else:
@@ -39,15 +36,13 @@ def generate_creative_brief(
             f"Project type: {property_type}"
         ],
         "must_not_show": [
+            "fake luxury imagery",
             "celebrity references",
-            "fake luxury visuals",
             "misleading promises",
-            "irrelevant stock imagery"
+            "irrelevant stock visuals"
         ],
         "reasoning": (
-            "This creative is intentionally transparent and restrained. "
-            "It attracts buyers with planning intent while filtering "
-            "out low-quality curiosity traffic."
+            "Designed to attract high-intent buyers through transparency "
+            "and realism, filtering casual or low-quality leads."
         )
     }
-
