@@ -13,4 +13,3 @@ def render_static_template(
         "visual_layers": image_spec["visual_elements"],
         "quality_checks": image_spec["quality_checks"]
     }
-
