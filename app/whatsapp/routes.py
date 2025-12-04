@@ -13,33 +13,29 @@ from app.state import (
     mark_handoff
 )
 
-# ✅ Campaign preview engine (DEBUG ONLY)
-from app.campaign_engine.campaign_preview import generate_campaign_preview
-
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "verify_token")
 
 
-# -------------------------------------------------------------------
-# WEBHOOK VERIFICATION (META REQUIREMENT)
-# -------------------------------------------------------------------
+# --------------------------------------------------
+# META WEBHOOK VERIFICATION
+# --------------------------------------------------
 @router.get("/webhook")
 async def verify_webhook(request: Request):
     params = request.query_params
-    mode = params.get("hub.mode")
-    token = params.get("hub.verify_token")
-    challenge = params.get("hub.challenge")
-
-    if mode == "subscribe" and token == VERIFY_TOKEN:
-        return PlainTextResponse(challenge)
+    if (
+        params.get("hub.mode") == "subscribe"
+        and params.get("hub.verify_token") == VERIFY_TOKEN
+    ):
+        return PlainTextResponse(params.get("hub.challenge"))
 
     return PlainTextResponse("Verification failed", status_code=403)
 
 
-# -------------------------------------------------------------------
-# INCOMING WHATSAPP MESSAGE HANDLER
-# -------------------------------------------------------------------
+# --------------------------------------------------
+# INCOMING WHATSAPP MESSAGE
+# --------------------------------------------------
 @router.post("/webhook")
 async def receive_message(request: Request):
     try:
@@ -66,62 +62,32 @@ async def receive_message(request: Request):
         user_text = message.get("text", {}).get("body", "").strip().lower()
         message_id = message.get("id")
 
-        if not from_number or not user_text:
-            return {"status": "ignored"}
-
         state = get_state(from_number)
 
         if state.get("last_message_id") == message_id:
-            return {"status": "duplicate_ignored"}
+            return {"status": "duplicate"}
 
         state["last_message_id"] = message_id
 
         if state.get("handoff_done"):
             return {"status": "agent_handling"}
 
-        # ✅ Intent detection
         intent = detect_intent(user_text)
-
-        # ✅ State update
         state = update_state_with_intent(from_number, intent)
 
-        # ✅ Human handoff logic
-        explicit_keywords = ["call me", "site visit", "contact agent"]
-
-        if state.get("rank") == "hot" or any(k in user_text for k in explicit_keywords):
+        if state.get("rank") == "hot":
             send_whatsapp_message(
                 from_number,
-                "✅ Perfect. Our advisor will call you shortly to confirm the details."
+                "✅ Our advisor will call you shortly to confirm details."
             )
             mark_handoff(from_number)
             return {"status": "handoff"}
 
-        # ✅ Template reply
-        reply_text = get_template(intent, state)
-        if not reply_text:
-            reply_text = fallback_reply(user_text)
-
-        send_whatsapp_message(from_number, reply_text)
+        reply = get_template(intent, state) or fallback_reply(user_text)
+        send_whatsapp_message(from_number, reply)
 
         return {"status": "received"}
 
     except Exception:
-        print("❌ WhatsApp webhook error")
         traceback.print_exc()
         return {"status": "error"}
-
-
-# -------------------------------------------------------------------
-# ✅ DEBUG CAMPAIGN PREVIEW (NO META / NO WHATSAPP)
-# -------------------------------------------------------------------
-@router.post("/debug/campaign-preview")
-async def debug_campaign_preview(payload: dict):
-    """
-    DEBUG ONLY.
-    Generates campaign strategy, creatives & audience preview.
-    Does NOT touch Meta Ads or WhatsApp.
-    """
-    print("✅ Debug campaign preview hit")
-
-    preview = generate_campaign_preview(payload)
-    return preview
