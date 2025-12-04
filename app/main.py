@@ -20,5 +20,25 @@ print("✅ Brain loaded:", list(COUNTERS.keys()))
 print("✅ EstatePilot backend booting")
 
 
-# ---------------------
+# --------------------------------------------------
+# FASTAPI APP
+# --------------------------------------------------
+app = FastAPI(
+    title="EstatePilot Backend",
+    version="1.0.0"
+)
 
+
+# --------------------------------------------------
+# REGISTER ROUTERS
+# --------------------------------------------------
+app.include_router(whatsapp_router)
+app.include_router(campaign_router)
+
+
+# --------------------------------------------------
+# HEALTH CHECK (RENDER USES THIS)
+# --------------------------------------------------
+@app.get("/health")
+def health():
+    return {"status": "ok"}
