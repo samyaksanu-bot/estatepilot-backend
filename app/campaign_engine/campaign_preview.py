@@ -14,10 +14,11 @@ def generate_campaign_preview(project: dict) -> dict:
     """
 
     try:
-        creative_decision = generate_creative_brief(
-            project,
-            intent_profile={}
-        )
+       creative_brief = generate_creative_brief(
+    project=project,
+    intent_profile=intent_profile
+)
+
     except Exception as e:
         return {
             "status": "ERROR",
