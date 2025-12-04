@@ -1,67 +1,78 @@
-# app/campaign_engine/creative_brief.py
+# app/campaign_engine/graphic_formula.py
 
-def generate_creative_brief(project: dict, intent_profile: dict) -> dict:
+def build_graphic_formula(
+    creative_brief: dict,
+    intent_profile: dict,
+    builder_overrides: dict | None = None
+) -> dict:
     """
-    Acts like a senior real-estate graphic designer.
-    Decides WHAT the creative should communicate and HOW.
+    Final decision layer before any graphic is created.
+    Engine recommends.
+    Builder can override.
+    System warns but never blocks.
     """
 
-    intent_level = intent_profile["intent_level"]
-    property_type = intent_profile["property_type"]
-    price_min, price_max = intent_profile["budget_range"]
+    if builder_overrides is None:
+        builder_overrides = {}
 
-    # ----- 1. Creative Personality -----
-    if intent_level == "high":
-        design_tone = "serious, clean, trust-focused"
-    else:
-        design_tone = "informative, welcoming, simple"
+    # -----------------------------
+    # 1. ENGINE RECOMMENDED DEFAULTS
+    # -----------------------------
+    engine_recommendation = {
+        "format": "static",
+        "canvas": "1080x1080",
+        "primary_visual": creative_brief["visual_layout"],
+        "design_tone": creative_brief["design_tone"],
+        "color_palette": creative_brief["color_palette"],
+        "show_price": True,
+        "use_brochure_images": False,
+        "cta": "Check availability on WhatsApp"
+    }
 
-    # ----- 2. Visual Layout Decision -----
-    if property_type == "plot":
-        visual_layout = "site layout + location map"
-        headline_style = "bold text, high clarity"
-    else:
-        visual_layout = "elevation + amenities snapshot"
-        headline_style = "balanced text with lifestyle cues"
+    # -----------------------------
+    # 2. APPLY BUILDER OVERRIDES
+    # -----------------------------
+    final_recipe = engine_recommendation.copy()
+    overrides_used = []
+    risk_flags = []
 
-    # ----- 3. Color Psychology (important) -----
-    if intent_level == "high":
-        color_palette = "neutral colors, white background, dark text"
-    else:
-        color_palette = "light colors, soft contrast"
+    for key, value in builder_overrides.items():
+        if key in final_recipe:
+            final_recipe[key] = value
+            overrides_used.append(f"{key} overridden to {value}")
 
-    # ----- 4. Mandatory Elements (must be visible) -----
-    must_show = [
-        f"Price range: ₹{price_min}–{price_max} lakh",
-        "Exact location or nearest landmark",
-        "Project type clarity (plot / flat)",
-    ]
+    # -----------------------------
+    # 3. RISK WARNINGS (NO BLOCKING)
+    # -----------------------------
 
-    # Possession clarity increases trust
-    if project.get("possession") == "ready":
-        must_show.append("Ready to register")
+    # Price hidden risk
+    if final_recipe.get("show_price") is False:
+        risk_flags.append(
+            "Hiding price may increase low-intent enquiries and waste sales time."
+        )
 
-    # ----- 5. Disallowed Elements (designer discipline) -----
-    must_not_show = [
-        "fake luxury imagery",
-        "celebrity photos",
-        "over-promising words like 'best' or 'no.1'",
-        "misleading lifestyle visuals"
-    ]
+    # Video-first risk
+    if final_recipe.get("format") == "video" and intent_profile["intent_level"] == "high":
+        risk_flags.append(
+            "High-intent buyers often respond better to clear static visuals than video."
+        )
 
-    # ----- 6. Why this creative will work -----
-    reasoning = (
-        "This creative filters casual viewers and builds trust by being "
-        "price-transparent, location-clear, and visually serious. "
-        "High-intent buyers feel safe engaging. Low-intent users scroll away."
-    )
+    # Brochure creatives risk
+    if final_recipe.get("use_brochure_images") is True:
+        risk_flags.append(
+            "Brochure visuals are often aspirational and may reduce ad credibility."
+        )
 
+    # -----------------------------
+    # 4. FINAL OUTPUT OBJECT
+    # -----------------------------
     return {
-        "design_tone": design_tone,
-        "visual_layout": visual_layout,
-        "headline_style": headline_style,
-        "color_palette": color_palette,
-        "must_show": must_show,
-        "must_not_show": must_not_show,
-        "reasoning": reasoning
+        "engine_recommended": engine_recommendation,
+        "builder_overrides_applied": overrides_used,
+        "final_visual_recipe": final_recipe,
+        "risk_warnings": risk_flags,
+        "note": (
+            "Builder choices are respected. Suggestions are advisory only "
+            "and will improve over time based on performance."
+        )
     }
