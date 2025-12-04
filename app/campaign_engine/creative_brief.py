@@ -1,91 +1,26 @@
-# app/campaign_engine/graphic_formula.py
-from typing import Dict, Optional
-def build_graphic_formula(
-    creative_brief: dict,
-    intent_profile: dict,
-    builder_overrides: Optional[Dict] = None
-) -> dict:
-    """
-    Final decision layer before any graphic is created.
-    Engine recommends.
-    Builder can override.
-    System warns but never blocks.
-    """
+def generate_creative_brief(input_data: dict) -> dict:
+    property_type = input_data.get("property_type", "flat")
 
-    if builder_overrides is None:
-        builder_overrides = {}
-
-    # -----------------------------
-    # 1. ENGINE RECOMMENDED DEFAULTS
-    # -----------------------------
-    engine_recommendation = {
-        "format": "static",
-        "canvas": "1080x1080",
-        "primary_visual": creative_brief["visual_layout"],
-        "design_tone": creative_brief["design_tone"],
-        "color_palette": creative_brief["color_palette"],
-        "show_price": True,
-        "use_brochure_images": False,
-        "cta": "Check availability on WhatsApp"
-    }
-
-    # -----------------------------
-    # 2. APPLY BUILDER OVERRIDES
-    # -----------------------------
-    final_recipe = engine_recommendation.copy()
-    overrides_used = []
-    risk_flags = []
-
-    for key, value in builder_overrides.items():
-        if key in final_recipe:
-            final_recipe[key] = value
-            overrides_used.append(f"{key} overridden to {value}")
-
-    # -----------------------------
-    # 3. RISK WARNINGS (NO BLOCKING)
-    # -----------------------------
-
-    # Price hidden risk
-    if final_recipe.get("show_price") is False:
-        risk_flags.append(
-            "Hiding price may increase low-intent enquiries and waste sales time."
-        )
-
-    # Video-first risk
-    if final_recipe.get("format") == "video" and intent_profile["intent_level"] == "high":
-        risk_flags.append(
-            "High-intent buyers often respond better to clear static visuals than video."
-        )
-
-    # Brochure creatives risk
-    if final_recipe.get("use_brochure_images") is True:
-        risk_flags.append(
-            "Brochure visuals are often aspirational and may reduce ad credibility."
-        )
-
-    # -----------------------------
-    # 4. FINAL OUTPUT OBJECT
-    # -----------------------------
-    return {
-        "engine_recommended": engine_recommendation,
-        "builder_overrides_applied": overrides_used,
-        "final_visual_recipe": final_recipe,
-        "risk_warnings": risk_flags,
-        "note": (
-            "Builder choices are respected. Suggestions are advisory only "
-            "and will improve over time based on performance."
-        )
-    }
-# ✅ COMPATIBILITY ALIAS (DO NOT REMOVE)
-# Required for campaign_preview imports
-def generate_creative_brief(project, intent_profile=None):
-    """
-    Compatibility wrapper to prevent ImportError.
-    Internally routes to existing logic.
-    """
-    # If intent_profile is not provided, assume project already contains it
-    return build_graphic_formula(
-        creative_brief=project,
-        intent_profile=intent_profile or {},
-        builder_overrides=None
+    visual_layout = (
+        "elevation + amenities snapshot"
+        if property_type == "flat"
+        else "layout map + plot visualization"
     )
+
+    return {
+        "design_tone": "informative, welcoming, simple",
+        "visual_layout": visual_layout,   # ✅ GUARANTEED KEY
+        "headline_style": "balanced text with lifestyle cues",
+        "color_palette": "light colors, soft contrast",
+        "must_show": [
+            "price range",
+            "location clarity",
+            "project type clarity"
+        ],
+        "must_not_show": [
+            "fake luxury imagery",
+            "celebrity photos",
+            "misleading claims"
+        ]
+    }
+
