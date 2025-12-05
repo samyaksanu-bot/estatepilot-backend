@@ -1,35 +1,33 @@
-# app/campaign_engine/intent_profile.py
-
-def build_buyer_intent_profile(project: dict, strategy: dict) -> dict:
+def build_intent_profile(project: dict) -> dict:
     """
-    Creates a single source of truth
-    about the buyer we want.
+    Builds buyer intent profile from project data.
+    This function MUST exist because campaign_preview depends on it.
     """
 
-    intent_level = strategy["intent_level"]
+    property_type = project.get("type", "flat")
+    location = project.get("location", "Not specified")
 
-    if intent_level == "high":
-        planning_timeline = "0-6 months"
-        disqualifiers = [
-            "brokers",
-            "budget below range",
-            "just browsing"
-        ]
-    else:
+    price_min = project.get("price_min_lakh")
+    price_max = project.get("price_max_lakh")
+
+    # ---- intent heuristics ----
+    if price_min and price_max and price_max <= 40:
+        intent_level = "medium"
         planning_timeline = "6-12 months"
-        disqualifiers = [
-            "brokers"
-        ]
+    elif price_min and price_max:
+        intent_level = "high"
+        planning_timeline = "0-6 months"
+    else:
+        intent_level = "low"
+        planning_timeline = "12+ months"
 
     return {
         "intent_level": intent_level,
-        "buyer_type": project.get("buyer_type", "end_user"),
-        "budget_range": [
-            project.get("price_min_lakh"),
-            project.get("price_max_lakh")
-        ],
+        "buyer_type": "end_user",
+        "property_type": property_type,
+        "location": location,
+        "budget_min": price_min,
+        "budget_max": price_max,
         "planning_timeline": planning_timeline,
-        "disqualifiers": disqualifiers,
-        "property_type": project.get("type"),
-        "location": project.get("location")
+        "disqualifiers": ["brokers"]
     }
