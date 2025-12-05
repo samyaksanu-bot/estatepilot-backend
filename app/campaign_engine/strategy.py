@@ -1,34 +1,28 @@
-# app/campaign_engine/strategy.py
-
-def decide_campaign_strategy(project: dict) -> dict:
+def build_campaign_strategy(project: dict, intent_profile: dict) -> dict:
     """
-    Decides how serious the campaign should be
-    based on project details.
+    Core campaign strategy evaluator.
+    MUST exist because campaign_preview imports it.
     """
 
-    price_min = project.get("price_min_lakh", 0)
-    possession = project.get("possession", "unknown")
-    project_type = project.get("type", "flat")
+    price_min = project.get("price_min_lakh")
+    price_max = project.get("price_max_lakh")
 
-    # Default values
-    intent_level = "medium"
-    campaign_goal = "lead_form"
-    core_angle = "trust"
+    # intent = high, medium, low
+    intent_level = intent_profile.get("intent_level", "medium")
 
-    # High-intent rules
-    if possession == "ready" and price_min >= 40:
-        intent_level = "high"
-        campaign_goal = "whatsapp_click"
-
-    if project_type == "plot":
-        core_angle = "price + location"
-
-    if project_type == "flat":
+    # goal logic
+    if intent_level == "high":
+        campaign_goal = "lead_form"
+        core_angle = "trust + urgency"
+    elif intent_level == "medium":
+        campaign_goal = "lead_form"
         core_angle = "trust + lifestyle"
+    else:
+        campaign_goal = "traffic"
+        core_angle = "awareness + lifestyle"
 
     return {
         "intent_level": intent_level,
         "campaign_goal": campaign_goal,
         "core_angle": core_angle
     }
-
