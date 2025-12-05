@@ -7,7 +7,9 @@ from app.campaign_engine.strategy import build_campaign_strategy
 def generate_campaign_preview(project: dict) -> dict:
     """
     SAFE campaign preview generator.
+
     Nothing runs at import time.
+    Everything runs only when this function is called.
     """
 
     # Step 1: intent inference
@@ -22,5 +24,18 @@ def generate_campaign_preview(project: dict) -> dict:
         intent_profile=intent_profile
     )
 
-    # Step 4: audience
-audience_plan = build_audience_plan(project, intent_profile)
+    # Step 4: audience plan
+    audience_plan = build_audience_plan(
+        project,
+        intent_profile
+    )
+
+    # FINAL RESPONSE
+    return {
+        "status": "SUCCESS",
+        "intent_profile": intent_profile,
+        "strategy": strategy,
+        "creative_brief": creative_brief,
+        "audience_plan": audience_plan
+    }
+
