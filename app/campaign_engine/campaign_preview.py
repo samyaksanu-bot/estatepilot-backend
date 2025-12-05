@@ -23,4 +23,4 @@ def generate_campaign_preview(project: dict) -> dict:
     )
 
     # Step 4: audience
-    audience_plan = build_audi
+audience_plan = build_audience_plan(project, intent_profile)
