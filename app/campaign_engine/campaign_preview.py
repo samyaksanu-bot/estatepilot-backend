@@ -14,7 +14,7 @@ def generate_campaign_preview(project: dict) -> dict:
     intent_profile = build_intent_profile(project)
 
     # Step 2: strategy
-    strategy = build_campaign_strategy(intent_profile)
+    strategy = build_campaign_strategy(project, intent_profile)
 
     # Step 3: creative
     creative_brief = generate_creative_brief(
