@@ -94,19 +94,9 @@ async def receive_message(request: Request):
             mark_handoff(from_number)
             return {"status": "handoff"}
 
-        # Generate reply from templates
-        reply_text = get_template(intent, state)
+        from app.whatsapp.flow import route_message
 
-        # Simple fallback (no import from reply_engine)
-        if not reply_text:
-            reply_text = (
-                "Thanks for reaching out.\n\n"
-                "Please share:\n"
-                "• Location you are interested in\n"
-                "• Budget range (in lakh)\n"
-                "• Plot or Flat\n\n"
-                "I will guide you better after this."
-            )
+reply_text = route_message(from_number, user_text)
 
         # Send reply
         send_whatsapp_message(from_number, reply_text)
