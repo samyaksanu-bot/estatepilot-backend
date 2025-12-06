@@ -21,120 +21,154 @@ def detect_intent(text: str) -> str:
     if any(w in t for w in ["more", "details", "detail", "project", "information", "info"]):
         return "overview"
 
+    # language detection keywords
+    if "english" in t:
+        return "lang_english"
+    if "hindi" in t:
+        return "lang_hindi"
+    if "hinglish" in t:
+        return "lang_hinglish"
+
     return "unknown"
-
-
-def extract_budget(text: str) -> str | None:
-    """
-    For now we just store whatever user typed as budget text.
-    Later we can parse numbers properly.
-    """
-    t = text.strip()
-    if len(t) < 2:
-        return None
-    return t
 
 
 def route_message(phone: str, text: str) -> str:
     """
-    Core conversation flow.
+    Updated conversation flow (SAFE UPGRADE):
 
-    ONE job: take (phone, text) → update state → return reply.
-    No WhatsApp API calls here.
+    intro → language → (existing budget/location/visit)
     """
+
     state = get_state(phone)
     step = state["step"]
-
     intent = detect_intent(text)
-    state["last_intent"] = intent
+    state["last_intent"] = intent  # backwards compatibility
 
-    # 1) INTRO STEP – user just came from ad
+    # ==================================================
+    # STEP 1: INTRO (ALWAYS FIRST MESSAGE)
+    # ==================================================
     if step == "intro":
-        state["step"] = "budget"
+        state["step"] = "language"
         return (
-            "Namaste! 😊 Main project ki team se EstatePilot bot hoon.\n"
-            "Short me bolun toh yeh project me plots / flats available hain with legal clearance and basic amenities.\n\n"
-            "Sabse pehle, approx budget range bataoge? Jaise 40–50L, 80–90L, ya 1–1.2Cr."
+            "Hi, I’m Pragiti — your property assistant.\n\n"
+            "Before we continue, which language do you prefer?\n"
+            "Options: English / Hindi / Hinglish"
         )
 
-    # 2) BUDGET STEP
+    # ==================================================
+    # STEP 2: LANGUAGE SELECTION
+    # ==================================================
+    if step == "language":
+
+        # explicit language command detected
+        if intent == "lang_english":
+            state["language"] = "english"
+            state["step"] = "budget"
+            return (
+                "Great, I’ll continue in English.\n\n"
+                "What’s your approximate budget range? e.g. 40–50L or 80–90L?"
+            )
+
+        if intent == "lang_hindi":
+            state["language"] = "hindi"
+            state["step"] = "budget"
+            return (
+                "Theek hai, main Hindi mein continue karungi.\n\n"
+                "Aapka approx budget range kya hoga? Jaise 40–50L ya 80–90L."
+            )
+
+        if intent == "lang_hinglish":
+            state["language"] = "hinglish"
+            state["step"] = "budget"
+            return (
+                "Perfect, main Hinglish mein continue karoongi.\n\n"
+                "Approx budget batao? Jaise 40–50L ya 80–90L."
+            )
+
+        # user gives vague answer — fallback handling
+        # DO NOT push repeatedly — just propose English (safe default)
+        if len(text.strip()) < 3 or intent == "unknown":
+            return (
+                "No worries. If language preference is unclear, I can continue in English.\n"
+                "Say OK to continue, or you can specify Hindi/Hinglish anytime."
+            )
+
+        # if user replies OK to fallback
+        if text.strip().lower() in ["ok", "okay", "yes", "sure"]:
+            state["language"] = "english"
+            state["step"] = "budget"
+            return (
+                "Done — continuing in English.\n\n"
+                "What’s your approximate budget range?"
+            )
+
+    # ==================================================
+    # AFTER STEP 2: USE YOUR ORIGINAL FLOW (BUDGET → LOCATION → VISIT → DONE)
+    # ==================================================
+
+    # =================== BUDGET ======================
     if step == "budget":
-        budget = extract_budget(text)
-        if not budget and intent != "price":
+        # accept any meaningful text as budget
+        if len(text.strip()) < 2 and intent != "price":
             return (
-                "Bas approx batao, strict nahi hai. Example: 40–50L, 80–90L, ya 1–1.2Cr.\n"
-                "Is range se main aapko sahi options filter kar sakta hoon."
+                "Just give rough budget — 40–50L or 80–90L type.\n"
+                "No need to be exact."
             )
 
-        if budget:
-            state["budget"] = budget
-            state["step"] = "location"
-            return (
-                f"Perfect, approx budget '{budget}' note kar liya. ✅\n\n"
-                "Ab batao, kaunsa area ya location prefer kar rahe ho? "
-                "City ke andar koi specific side (east / west / main road ke paas, etc.)?"
-            )
+        state["budget"] = text.strip()
+        state["step"] = "location"
+        return (
+            f"Noted: budget '{state['budget']}'.\n\n"
+            "Which area or locality do you prefer?"
+        )
 
-    # 3) LOCATION STEP
+    # =================== LOCATION ======================
     if step == "location":
-        # If user says anything meaningful, accept as location preference
         if len(text.strip()) < 3 and intent != "location":
             return (
-                "Thoda sa detail me batao, kaunsi side ya area soch rahe ho?\n"
-                "Example: 'Ring road ke paas', 'Airport side', ya specific locality ka naam."
+                "Tell me area preference — airport side, ring road, school belt, etc."
             )
 
         state["location"] = text.strip()
         state["step"] = "visit"
         return (
-            f"Got it, location preference note kar li: '{state['location']}'. ✅\n\n"
-            "Aapko site visit kab comfortable rahega? "
-            "Main builder ki team se call + location share karwa dunga.\n"
-            "Options: Aaj, Kal, Weekend, ya koi specific date/time likh sakte ho."
+            f"Location '{state['location']}' noted.\n\n"
+            "When would you be comfortable for a site visit? Today, tomorrow, weekend?"
         )
 
-    # 4) VISIT STEP
+    # =================== VISIT ======================
     if step == "visit":
-        # Whatever user says, treat as visit preference
         state["visit_time"] = text.strip()
         state["qualified"] = True
         state["step"] = "done"
 
         return (
-            "Awesome, site visit preference note ho gaya. ✅\n\n"
-            "Ab next step:\n"
-            "• Project expert aapko call karega\n"
-            "• Exact location + landmark WhatsApp par aayega\n"
-            "• Visit ke time pe aapko personally project dikhaenge\n\n"
-            "Agar price, payment plan, ya availability ke bare me koi specific sawal hai "
-            "toh yahin puch sakte ho, main short and clear answer dunga."
+            "Site visit preference noted.\n\n"
+            "Next step: Advisor will call you and send location.\n"
+            "Meanwhile, if you want pricing or availability, ask me here."
         )
 
-    # 5) DONE STEP – conversation already qualified
+    # =================== DONE ======================
     if step == "done":
-        # Keep it simple, avoid loop
         if intent == "price":
             return (
-                "Price details phone par thoda customise karke hi batayenge, "
-                "taaki aapke budget ke hisaab se right option mile.\n"
-                "Team ka call aayega jaldi. Tab tak agar koi specific question hai, "
-                "jaise 'minimum booking amount' ya 'EMI option', toh yahan puch lo."
+                "Pricing depends on unit type. During call we match exact options.\n"
+                "If you prefer EMI or structured plan, just tell me."
             )
+
         if intent == "location":
             return (
-                "Location: site visit se just pehle aapko Google Maps location share hogi, "
-                "taaki easily reach ho sake. Area roughly wahi hai jo aapne mention kiya tha.\n"
-                "Baaki exact landmark call par explain kar denge."
+                "Exact map will be shared before visit. Landmark is easy to reach.\n"
+                "For now area matches what you mentioned."
             )
 
         return (
-            "Team aapka case already pick kar chuki hai. Call agar miss ho jaye toh "
-            "yahan bata dena, main follow-up trigger kara dunga. 🙂"
+            "Team already picked your lead. If call is missed, message me for follow-up."
         )
 
-    # Fallback (should rarely hit)
+    # fallback safety
     state["step"] = "intro"
     return (
-        "Main thoda confuse ho gaya. Chalo fir se start karte hain.\n"
-        "Aap approx budget range batao, jaise 40–50L, 80–90L, ya 1–1.2Cr."
+        "Let's restart. Which language do you prefer: English, Hindi, Hinglish?"
     )
+
