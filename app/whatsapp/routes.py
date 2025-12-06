@@ -94,17 +94,14 @@ async def receive_message(request: Request):
             mark_handoff(from_number)
             return {"status": "handoff"}
 
-        from app.whatsapp.flow import route_message
+        # ====== NEW FUNNEL HANDLER ======
+    from app.whatsapp.flow import route_message
+    reply_text = route_message(from_number, user_text)
 
-reply_text = route_message(from_number, user_text)
+    send_whatsapp_message(from_number, reply_text)
+    return {"status": "received"}
 
-        # Send reply
-        send_whatsapp_message(from_number, reply_text)
-
-        return {"status": "received"}
-
-    except Exception:
-        print("❌ WhatsApp webhook error")
-        traceback.print_exc()
-        return {"status": "error"}
-
+except Exception:
+    print("❌ WhatsApp webhook error")
+    traceback.print_exc()
+    return {"status": "error"}
