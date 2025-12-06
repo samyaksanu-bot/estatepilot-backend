@@ -71,6 +71,19 @@ def route_message(phone: str, text: str) -> str:
     state["last_intent"] = intent  # backwards compatibility
 
     # ==================================================
+# SILENT DYNAMIC LANGUAGE ADAPTATION
+# ==================================================
+# Only apply after language is fixed and funnel started
+if state.get("language") and step not in ["intro", "language"]:
+    detected = detect_language_from_text(text)
+
+    # If user NATURALLY shifts language, adapt silently
+    if detected != state["language"]:
+        state["language"] = detected
+        # NO confirmation message here
+        # Just continue same step naturally
+
+    # ==================================================
     # STEP 1: INTRO (ALWAYS FIRST MESSAGE)
     # ==================================================
     if step == "intro":
