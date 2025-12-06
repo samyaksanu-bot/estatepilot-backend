@@ -81,7 +81,7 @@ async def receive_message(request: Request):
         # Detect intent
         intent = detect_intent(user_text)
 
-        # Update state with new intent
+        # Update state
         state = update_state_with_intent(from_number, intent)
 
         # If hot lead → handoff
@@ -95,13 +95,13 @@ async def receive_message(request: Request):
             return {"status": "handoff"}
 
         # ====== NEW FUNNEL HANDLER ======
-    from app.whatsapp.flow import route_message
-    reply_text = route_message(from_number, user_text)
+        from app.whatsapp.flow import route_message
+        reply_text = route_message(from_number, user_text)
 
-    send_whatsapp_message(from_number, reply_text)
-    return {"status": "received"}
+        send_whatsapp_message(from_number, reply_text)
+        return {"status": "received"}
 
-except Exception:
-    print("❌ WhatsApp webhook error")
-    traceback.print_exc()
-    return {"status": "error"}
+    except Exception:
+        print("❌ WhatsApp webhook error")
+        traceback.print_exc()
+        return {"status": "error"}
