@@ -31,6 +31,32 @@ def detect_intent(text: str) -> str:
 
     return "unknown"
 
+def detect_language_from_text(text: str) -> str:
+    """
+    Lightweight rule-based language detector.
+    We only care about: english / hindi / hinglish
+    """
+
+    hindi_words = [
+        "kya", "kab", "kaise", "ghar", "zameen", "flat",
+        "booking", "visit", "kal", "aaj", "weekend",
+        "paisa", "loan", "possession", "dekho", "dekhna",
+        "side", "wali", "area", "ke", "ki"
+    ]
+
+    t = text.lower()
+    hits = sum(1 for w in hindi_words if w in t)
+
+    # strong hindi
+    if hits >= 4:
+        return "hindi"
+
+    # mixed hinglish
+    if 2 <= hits < 4:
+        return "hinglish"
+
+    # default: english
+    return "english"
 
 def route_message(phone: str, text: str) -> str:
     """
