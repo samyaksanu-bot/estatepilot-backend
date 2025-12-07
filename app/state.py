@@ -53,6 +53,7 @@ def _initial_state() -> dict:
         "loan_flag": None,
         "visit_time": None,
         "qualified": False,
+        "stop_questions": False,
 
         # Behaviour tracking
         "skip_count": 0,
@@ -137,3 +138,14 @@ def append_history(phone: str, sender: str, text: str) -> None:
     # trim to last 15 messages max
     if len(state["conversation_history"]) > 15:
         state["conversation_history"] = state["conversation_history"][-15:]
+    def stop_questioning(phone: str) -> None:
+    """
+    Use this flag when:
+    - user qualified OR
+    - rank becomes hot OR
+    - user explicitly requests call/visit OR
+    - user avoids questions multiple times OR
+    - user shows irritation
+    """
+    state = get_state(phone)
+    state["stop_questions"] = True
