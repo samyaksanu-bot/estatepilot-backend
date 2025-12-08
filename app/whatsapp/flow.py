@@ -169,11 +169,14 @@ def route_message(phone: str, text: str) -> str:
         state["visit_time"] = text.strip()
         state["qualified"] = True
         state["step"] = "done"
+          # NEW: once qualified — stop asking questions
+    from app.state import stop_questioning
+    stop_questioning(phone)
 
         return (
             "Site visit preference noted.\n\n"
             "Next step: Advisor will call you and send location.\n"
-            "Meanwhile, if you want pricing or availability, ask me here."
+            "Meanwhile, if you want pricing, availability or anything related to this project, ask me here."
         )
 
     # ----------------------------------------------------
