@@ -53,6 +53,8 @@ def _initial_state() -> dict:
         "loan_flag": None,
         "visit_time": None,
         "qualified": False,
+
+        # NEW — stop AI or funnel from asking more probing questions
         "stop_questions": False,
 
         # Behaviour tracking
@@ -60,22 +62,12 @@ def _initial_state() -> dict:
         "frustration_flags": [],
 
         # Conversation memory (for AI fallback)
-        "conversation_history": [],     # [{from: "user"|"bot", text: "..."}]
+        "conversation_history": [],
 
-        # NEW — AI integration mode:
-        # "lead" = from ad (qualification)
-        # "personal" = random chat / non-lead
+        # NEW — conversation mode
         "conversation_mode": None,
 
-        # NEW — for attaching project details:
-        # Example:
-        # {
-        #   "name": "...",
-        #   "price_range": "...",
-        #   "location": "...",
-        #   "usp": "...",
-        #   "unit_types": "2BHK / 3BHK",
-        # }
+        # NEW — full project context
         "project_context": None,
     }
 
@@ -138,7 +130,13 @@ def append_history(phone: str, sender: str, text: str) -> None:
     # trim to last 15 messages max
     if len(state["conversation_history"]) > 15:
         state["conversation_history"] = state["conversation_history"][-15:]
-    def stop_questioning(phone: str) -> None:
+
+
+# ===================================================
+# NEW — Stop funnel or AI from asking more questions
+# ===================================================
+
+def stop_questioning(phone: str) -> None:
     """
     Use this flag when:
     - user qualified OR
@@ -149,3 +147,4 @@ def append_history(phone: str, sender: str, text: str) -> None:
     """
     state = get_state(phone)
     state["stop_questions"] = True
+
