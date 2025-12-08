@@ -106,38 +106,27 @@ def route_message(phone: str, text: str) -> str:
         state["step"] = "decision"
         return intro
 
-    # =============================
-    # 4) DECISION STEP — user chooses:
-    #    - MORE INFO → AI MODE
-    #    - VISIT → QUALIFIED
-    # =============================
-    if step == "decision":
-        t = text.lower()
+      # =============================
+      # 4) DECISION STEP — hybrid
+      # =============================
+if step == "decision":
+    t = text.lower()
 
-        # Visit request → qualified lead
-        if any(x in t for x in ["visit", "site", "call", "appointment", "come", "see property"]):
-            state["qualified"] = True
-            state["stop_questions"] = True
-            from app.state import mark_handoff
-            mark_handoff(phone)
-            return (
-                "Great — I will arrange a call with our project expert for availability and visit planning.\n"
-                "Please share your preferred time."
-            )
-
-        # User wants more info → switch to AI MODE
-        if any(x in t for x in ["more", "details", "explain", "tell me", "what about", "availability", "pricing"]):
-            state["ai_mode"] = True
-            return call_ai(phone, text)
-
-        # Unsure → AI handles softly
-        if any(x in t for x in ["confused", "not sure", "hmm", "thinking"]):
-            state["ai_mode"] = True
-            return call_ai(phone, text)
-
-        # default → AI handles
+    # Visit intent DURING DECISION stage should NOT handoff directly
+    if any(x in t for x in ["visit", "site", "see property", "meet", "come"]):
+        # move to AI mode for clarity, NOT handoff
         state["ai_mode"] = True
         return call_ai(phone, text)
+
+    # User wants more info → AI MODE
+    if any(x in t for x in ["more", "details", "explain", "what about", "availability", "pricing"]):
+        state["ai_mode"] = True
+        return call_ai(phone, text)
+
+    # Default → AI MODE
+    state["ai_mode"] = True
+    return call_ai(phone, text)
+
 
     # =============================
     # 5) ANY STEP AFTER AI MODE
