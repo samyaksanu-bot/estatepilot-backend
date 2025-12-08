@@ -1,47 +1,13 @@
-# app/whatsapp/flow.py
-
-from app.state import get_state
-
-
-def detect_intent(text: str) -> str:
-    """
-    Basic keyword-based intent detector + language commands.
-    """
-    t = text.lower()
-
-    if any(w in t for w in ["price", "budget", "cost", "rate"]):
-        return "price"
-    if any(w in t for w in ["location", "where", "area", "site"]):
-        return "location"
-    if any(w in t for w in ["available", "availability", "possession", "ready to move"]):
-        return "availability"
-    if any(w in t for w in ["visit", "see", "come", "site visit", "dekna", "dekhna"]):
-        return "visit"
-    if any(w in t for w in ["more", "details", "detail", "project", "information", "info"]):
-        return "overview"
-
-    # explicit language triggers
-    if "english" in t:
-        return "lang_english"
-    if "hindi" in t:
-        return "lang_hindi"
-    if "hinglish" in t:
-        return "lang_hinglish"
-
-    return "unknown"
-
+from app.state import get_state, append_history
+from app.ai_engine import call_ai   # <-- IMPORTANT
 
 def detect_language_from_text(text: str) -> str:
-    """
-    Lightweight silent language detector — user may switch mid-flow.
-    """
     hindi_words = [
         "kya", "kab", "kaise", "ghar", "zameen", "flat",
         "booking", "visit", "kal", "aaj", "weekend",
         "paisa", "loan", "possession", "dekho", "dekhna",
         "side", "wali", "area", "ke", "ki"
     ]
-
     t = text.lower()
     hits = sum(1 for w in hindi_words if w in t)
 
@@ -53,157 +19,132 @@ def detect_language_from_text(text: str) -> str:
 
 
 def route_message(phone: str, text: str) -> str:
-    """
-    Improved WhatsApp flow:
-    intro → language choice → budget → location → visit → done
-    With silent language adaptation.
-    """
-
     state = get_state(phone)
     step = state["step"]
-    intent = detect_intent(text)
-    state["last_intent"] = intent
+    user_lang = state["language"]
 
-    # ----------------------------------------------------
-    # SILENT LANGUAGE ADAPTATION (AFTER SELECTION DONE)
-    # ----------------------------------------------------
-    if state.get("language") and step not in ["intro", "language"]:
-        detected = detect_language_from_text(text)
-        if detected != state["language"]:
-            state["language"] = detected
-        # do NOT say anything — continue normally
-
-    # ----------------------------------------------------
-    # STEP 1: INTRO
-    # ----------------------------------------------------
+    # =============================
+    # 1) INTRO STEP
+    # =============================
     if step == "intro":
         state["step"] = "language"
         return (
-            "Hi, I’m Pragiti — your property assistant.\n\n"
+            "Hi, I’m Pragiti from EstatePilot.\n"
+            "I help you with verified real estate projects — availability, pricing, amenities and site visits.\n\n"
             "Before we continue, which language do you prefer?\n"
-            "Options: English / Hindi / Hinglish"
+            "English, Hindi or Hinglish?"
         )
 
-    # ----------------------------------------------------
-    # STEP 2: LANGUAGE SELECTION
-    # ----------------------------------------------------
+    # =============================
+    # 2) LANGUAGE SELECTION STEP
+    # =============================
     if step == "language":
+        t = text.strip().lower()
 
-        # explicit language triggers
-        if intent == "lang_english":
+        if t in ["english", "eng", "en"]:
             state["language"] = "english"
-            state["step"] = "budget"
-            return (
-                "Great, continuing in English.\n\n"
-                "What’s your approximate budget range?"
-            )
-
-        if intent == "lang_hindi":
+            state["step"] = "project_intro"
+        elif t in ["hindi", "hin", "hi"]:
             state["language"] = "hindi"
-            state["step"] = "budget"
-            return (
-                "Theek hai, main Hindi mein continue karungi.\n\n"
-                "Approx budget range kya hoga? Jaise 40–50L?"
-            )
-
-        if intent == "lang_hinglish":
+            state["step"] = "project_intro"
+        elif t in ["hinglish", "mix"]:
             state["language"] = "hinglish"
-            state["step"] = "budget"
+            state["step"] = "project_intro"
+        else:
+            # If user does not specify clearly
             return (
-                "Perfect, main Hinglish mein continue karoongi.\n\n"
-                "Approx budget batao? Jaise 40–50L?"
+                "No worries. If unclear, I can continue in English.\n"
+                "Say OK to continue, or tell Hindi/Hinglish anytime."
             )
 
-        # fallback option
-        if len(text.strip()) < 3 or intent == "unknown":
-            return (
-                "No worries. If preference is unclear, I’ll continue in English.\n"
-                "Say OK to continue, or specify Hindi/Hinglish anytime."
+        # Short confirmation
+        return "Great — continuing in " + state["language"] + "."
+
+    # =============================
+    # 3) PROJECT INTRODUCTION STEP
+    # =============================
+    if step == "project_intro":
+
+        project = state.get("project_context")
+        if not project:
+            # no project given yet — safe fallback
+            return "Please tell me which project you are exploring, and I'll share full details."
+
+        # BUILD CLEAN INTRO MESSAGE BASED ON LANGUAGE
+        lang = state["language"] or "english"
+
+        if lang == "english":
+            intro = (
+                f"{project['name']} is located at {project['location']}.\n\n"
+                f"Price starts from {project['price_range']}.\n"
+                f"It offers {project['unit_types']} with modern amenities including {project['usp']}.\n"
+                "Nearby development and connectivity make it ideal for families and long-term appreciation.\n\n"
+                "Would you like more detailed information,\n"
+                "or should I help you plan a short site visit for clarity?"
             )
 
-        if text.strip().lower() in ["ok", "okay", "yes", "sure"]:
-            state["language"] = "english"
-            state["step"] = "budget"
-            return (
-                "Done. Continuing in English.\n\n"
-                "What’s your approximate budget range?"
+        elif lang == "hindi":
+            intro = (
+                f"{project['name']} {project['location']} mein located hai.\n\n"
+                f"Starting price {project['price_range']} se hai.\n"
+                f"Isme {project['unit_types']} units aur modern amenities milte hain — {project['usp']}.\n"
+                "Nearby development aur connectivity isey families aur investment ke liye ideal banata hai.\n\n"
+                "Kya aap project ke baare mein aur details chahte hain,\n"
+                "ya main aapke liye short site visit plan karoon?"
             )
 
-    # ----------------------------------------------------
-    # STEP 3: BUDGET
-    # ----------------------------------------------------
-    if step == "budget":
-        if len(text.strip()) < 2 and intent != "price":
-            return (
-                "Just rough budget — 40–50L or 80–90L type.\n"
-                "No need to be exact."
+        else:  # Hinglish
+            intro = (
+                f"{project['name']} {project['location']} mein situated hai.\n\n"
+                f"Pricing approx {project['price_range']} se start hoti hai.\n"
+                f"Isme {project['unit_types']} aur modern amenities milti hain — {project['usp']}.\n"
+                "Area development aur connectivity good future appreciation deta hai.\n\n"
+                "Aap details explore karna chahenge,\n"
+                "ya short site visit plan kar du clarity ke liye?"
             )
 
-        state["budget"] = text.strip()
-        state["step"] = "location"
-        return (
-            f"Noted: budget '{state['budget']}'.\n\n"
-            "Which area or locality do you prefer?"
-        )
+        state["step"] = "decision"
+        return intro
 
-    # ----------------------------------------------------
-    # STEP 4: LOCATION
-    # ----------------------------------------------------
-    if step == "location":
-        if len(text.strip()) < 3 and intent != "location":
+    # =============================
+    # 4) DECISION STEP — user chooses:
+    #    - MORE INFO → AI MODE
+    #    - VISIT → QUALIFIED
+    # =============================
+    if step == "decision":
+        t = text.lower()
+
+        # Visit request → qualified lead
+        if any(x in t for x in ["visit", "site", "call", "appointment", "come", "see property"]):
+            state["qualified"] = True
+            state["stop_questions"] = True
+            from app.state import mark_handoff
+            mark_handoff(phone)
             return (
-                "Tell me area preference — airport side, ring road, school belt, etc."
+                "Great — I will arrange a call with our project expert for availability and visit planning.\n"
+                "Please share your preferred time."
             )
 
-        state["location"] = text.strip()
-        state["step"] = "visit"
-        return (
-            f"Location '{state['location']}' noted.\n\n"
-            "When would you be comfortable for a site visit? Today, tomorrow, weekend?"
-        )
+        # User wants more info → switch to AI MODE
+        if any(x in t for x in ["more", "details", "explain", "tell me", "what about", "availability", "pricing"]):
+            state["ai_mode"] = True
+            return call_ai(phone, text)
 
-    # ----------------------------------------------------
-    # STEP 5: VISIT
-    # ----------------------------------------------------
-    if step == "visit":
-        state["visit_time"] = text.strip()
-        state["qualified"] = True
-        state["step"] = "done"
-          # NEW: once qualified — stop asking questions
-    from app.state import stop_questioning
-    stop_questioning(phone)
+        # Unsure → AI handles softly
+        if any(x in t for x in ["confused", "not sure", "hmm", "thinking"]):
+            state["ai_mode"] = True
+            return call_ai(phone, text)
 
-        return (
-            "Site visit preference noted.\n\n"
-            "Next step: Advisor will call you and send location.\n"
-            "Meanwhile, if you want pricing, availability or anything related to this project, ask me here."
-        )
+        # default → AI handles
+        state["ai_mode"] = True
+        return call_ai(phone, text)
 
-    # ----------------------------------------------------
-    # STEP 6: DONE
-    # ----------------------------------------------------
-    if step == "done":
-        if intent == "price":
-            return (
-                "Pricing depends on unit type. During call we match exact options.\n"
-                "If you prefer EMI or structured plan, just tell me."
-            )
+    # =============================
+    # 5) ANY STEP AFTER AI MODE
+    # =============================
+    if state.get("ai_mode") is True:
+        return call_ai(phone, text)
 
-        if intent == "location":
-            return (
-                "Exact map will be shared before visit.\n"
-                "Area matches what you mentioned."
-            )
-
-        return (
-            "Team already picked your lead. If call is missed, message me for follow-up."
-        )
-
-    # ----------------------------------------------------
-    # SAFETY FALLBACK
-    # ----------------------------------------------------
+    # safety fallback
     state["step"] = "intro"
-    return (
-        "Let's restart.\n"
-        "Which language do you prefer: English, Hindi, Hinglish?"
-    )
+    return "Let’s restart. Which language do you prefer?"
