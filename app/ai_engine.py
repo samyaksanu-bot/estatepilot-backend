@@ -22,6 +22,47 @@ def call_ai(phone: str, user_text: str) -> str:
     """
 
     state = get_state(phone)
+    # =====================================================
+# GLOBAL STOP MODE: NO MORE QUALIFICATION QUESTIONS
+# =====================================================
+if state.get("stop_questions") is True:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": """
+You are Pragiti, a real estate assistant.
+
+User has either:
+- been qualified, OR
+- requested a call, OR
+- shown irritation, OR
+- skipped funnel questions
+
+RULE:
+Stop ALL qualification or probing questions.
+
+Your replies must:
+- answer only what user asks
+- be short, friendly and factual
+- no nudging or pushing
+- no new qualification questions
+- assist with availability, pricing, details or site visit
+
+If user asks irrelevant or non-real-estate topics:
+Reply: "I assist only with this project information, pricing or site visits."
+"""},
+            {"role": "user", "content": user_text}
+        ],
+        temperature=0.4,
+        max_tokens=100
+    )
+
+    reply = response.choices[0].message.content.strip()
+
+    append_history(phone, "user", user_text)
+    append_history(phone, "bot", reply)
+
+    return reply
     project = state.get("project_context")
     history = state.get("conversation_history", [])
     rank = state.get("rank")
