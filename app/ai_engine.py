@@ -4,7 +4,6 @@ import os
 from openai import OpenAI
 from app.state import get_state, append_history, mark_handoff
 
-# Load API key from environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise Exception("OPENAI_API_KEY missing in environment variables")
@@ -13,10 +12,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def _detect_language(text: str) -> str:
-    """
-    Very lightweight heuristic:
-    - returns "hindi", "hinglish", or "english"
-    """
     hindi_words = [
         "kya", "kab", "kaise", "ghar", "zameen", "flat",
         "booking", "visit", "kal", "aaj", "weekend",
@@ -25,7 +20,6 @@ def _detect_language(text: str) -> str:
     ]
     t = text.lower()
     hits = sum(1 for w in hindi_words if w in t)
-
     if hits >= 4:
         return "hindi"
     if 2 <= hits < 4:
@@ -34,217 +28,177 @@ def _detect_language(text: str) -> str:
 
 
 def call_ai(phone: str, user_text: str) -> str:
-    """
-    AI conversation handler for WhatsApp.
-    - GPT-4o-mini
-    - Project-aware
-    - Language-aware
-    - Persuasive but short
-    - Real estate ONLY
-    - Emotion-aware and non-pushy
-    """
-
     state = get_state(phone)
     project = state.get("project_context")
     history = state.get("conversation_history", [])
 
     text_l = user_text.lower()
 
-    # =====================================
-    # 1) SITE VISIT TRIGGER DURING AI MODE
-    # =====================================
-    visit_triggers = [
-        "visit", "site visit", "see property", "property visit",
-        "come and see", "want to see", "want to visit", "schedule visit",
-        "plan a visit", "plan site", "book visit", "arrange visit",
-        "meet at site", "location visit", "show me the property",
-        "call me", "i want call", "talk to executive", "talk to agent"
+    # ==========================================================
+    # VISIT RECOGNITION (BUT NOT IMMEDIATE HANDOFF)
+    # ==========================================================
+
+    positive_visit_words = [
+        "visit", "site visit", "see property", "want to visit",
+        "schedule visit", "arrange visit", "book visit",
+        "show me property", "property visit"
     ]
 
-    if any(v in text_l for v in visit_triggers):
+    # If user expresses visit interest AFTER already exploring details,
+    # AND NOT confused, AND NOT hesitant → CONFIRM then handoff
+    if (
+        any(w in text_l for w in positive_visit_words)
+        and state.get("ai_mode") is True
+        and state.get("stop_questions") is False
+        and ("not" not in text_l and "later" not in text_l and "after clarity" not in text_l)
+    ):
+        # AI now confirms one more time softly
+        reply = (
+            "Great — a short site visit really gives clarity with no obligation.\n"
+            "If you like, I can arrange a call with our project expert to plan a visit.\n"
+            "Share a preferred time."
+        )
+
+        # Mark qualified ONLY AFTER USER CONFIRMS NEXT MESSAGE
+        state["visit_pending_confirmation"] = True
+
+        append_history(phone, "user", user_text)
+        append_history(phone, "bot", reply)
+        return reply
+
+    # ==========================================================
+    # HARD CONFIRMATION for handoff (OPTION B)
+    # ==========================================================
+    if state.get("visit_pending_confirmation") is True and any(
+        p in text_l for p in ["yes", "ok", "sure", "call", "confirm", "let's do", "tomorrow", "morning", "evening"]
+    ):
         state["qualified"] = True
         state["stop_questions"] = True
         state["ai_mode"] = False
-
+        state["visit_pending_confirmation"] = False
         mark_handoff(phone)
 
         reply = (
-            "Great — I’ll arrange a call with our project expert who will guide you with "
-            "availability, exact location and site visit planning.\n"
-            "Please share your preferred time."
+            "Perfect — I will arrange a call with our expert to finalize availability and visit planning.\n"
+            "They will contact you shortly."
         )
 
         append_history(phone, "user", user_text)
         append_history(phone, "bot", reply)
         return reply
 
-    # =====================================
-    # 2) SAFETY FILTER: PERSONAL / INTERNAL
-    # =====================================
-    if any(w in text_l for w in [
-        "who are you",
-        "real name",
-        "where do you live",
-        "who made you",
-        "your email",
-        "your phone number",
-        "personal details",
-        "login details",
-        "password",
-        "openai account",
-        "account details"
-    ]):
+    # ==========================================================
+    # SAFETY FILTER: Personal Queries
+    # ==========================================================
+    personal = [
+        "who are you", "real name", "login", "password",
+        "email", "phone number", "personal details",
+        "openai account"
+    ]
+    if any(w in text_l for w in personal):
         reply = (
-            "I am Pragiti, your real estate assistant. I help only with this project’s "
-            "information, pricing, availability and site visits. I don’t share personal or internal data."
+            "I am Pragiti, your real estate assistant. I only assist with this project information, "
+            "pricing, availability and visit planning."
         )
         append_history(phone, "user", user_text)
         append_history(phone, "bot", reply)
         return reply
 
-    # =====================================
-    # 3) MISSING PROJECT CONTEXT SAFETY
-    # =====================================
+    # ==========================================================
+    # Project MUST EXIST
+    # ==========================================================
     if not project:
-        reply = (
-            "Tell me which project you’re exploring, and I’ll guide you with pricing, availability and visit planning."
-        )
+        reply = "Tell me which project you are exploring and I will guide you."
         append_history(phone, "user", user_text)
         append_history(phone, "bot", reply)
         return reply
 
-    # =====================================
-    # 4) LANGUAGE DETECTION + STORE
-    # =====================================
+    # ==========================================================
+    # LANGUAGE DETECTION
+    # ==========================================================
     lang = _detect_language(user_text)
     state["language"] = lang
 
     lang_hint = {
         "english": "Reply in natural English.",
-        "hindi": "Reply purely in comfortable conversational Hindi.",
-        "hinglish": "Reply in natural Hinglish (mix of Hindi and English) like people chat on WhatsApp."
+        "hindi": "Reply in comfortable conversational Hindi.",
+        "hinglish": "Reply in natural Hinglish like WhatsApp chat."
     }.get(lang, "Reply in natural English.")
 
-    # =====================================
-    # 5) STOP MODE: NO MORE QUALIFICATION
-    # =====================================
+    # ==========================================================
+    # STOP MODE (ONLY after full qualification)
+    # ==========================================================
     if state.get("stop_questions") is True:
-        # Support-only mode: no more probing, no persuasion
         system_prompt = f"""
 You are Pragiti, a real estate assistant.
 
-User has either:
-- already been qualified, OR
-- requested a call/visit, OR
-- shown irritation, OR
-- avoided qualification questions.
+STOP asking qualification questions.
+Only support with details or information.
 
-RULE:
-Stop ALL qualification or probing questions.
+Be short, polite and factual.
+No persuasion.
+If user asks for call/visit, confirm politely.
 
-Your replies must:
-- answer only what the user asks
-- be short, friendly and factual
-- no nudging, no persuasion
-- no new qualification questions
-- assist only with information, availability or support
-- if user asks for call/visit, politely confirm and say our expert will call.
-
-Real-estate only. Ignore unrelated topics.
+Real-estate only.
 {lang_hint}
 """
-
-        messages = [{"role": "system", "content": system_prompt}]
+        msgs = [{"role": "system", "content": system_prompt}]
         for h in history[-6:]:
-            messages.append({
-                "role": "assistant" if h["from"] == "bot" else "user",
-                "content": h["text"]
-            })
-        messages.append({"role": "user", "content": user_text})
+            msgs.append({"role": "assistant" if h["from"] == "bot" else "user", "content": h["text"]})
+        msgs.append({"role": "user", "content": user_text})
 
-        response = client.chat.completions.create(
+        res = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=messages,
+            messages=msgs,
             temperature=0.4,
-            max_tokens=100,
+            max_tokens=90,
         )
-
-        reply = response.choices[0].message.content.strip()
+        reply = res.choices[0].message.content.strip()
         append_history(phone, "user", user_text)
         append_history(phone, "bot", reply)
         return reply
 
-    # =====================================
-    # 6) NORMAL AI MODE (WITH QUALIFICATION)
-    # =====================================
+    # ==========================================================
+    # NORMAL AI MODE (BEST)
+    # ==========================================================
     system_prompt = f"""
-You are PRAGITI, a HUMAN-LIKE real estate sales assistant for EstatePilot.
+You are PRAGITI, a professional real estate advisor.
 
-PROJECT (FACT-ONLY):
+PROJECT:
 - Name: {project.get("name")}
 - Location: {project.get("location")}
-- Price Range: {project.get("price_range")}
-- Unit Types: {project.get("unit_types")}
+- Price: {project.get("price_range")}
+- Units: {project.get("unit_types")}
 - Status: {project.get("status")}
-- Amenities / USP: {project.get("usp")}
+- Amenities: {project.get("usp")}
 
-STRICT RULES:
+RULES:
 1) {lang_hint}
-2) Answer in MAX 2–4 sentences.
-   - First: clear factual answer.
-   - Then: a soft, non-pushy suggestion (e.g., a short visit can give clarity with no obligation).
-3) NO HALLUCINATION:
-   If you are not sure, say:
-   "Our advisor will confirm this on call."
-   Do NOT invent builder history, distances, bank tie-ups or future developments.
-4) REAL-ESTATE ONLY:
-   If user asks about unrelated topics (tech, politics, jokes, personal life, hacking, etc.),
-   reply briefly:
-   "I assist only with this real estate project, its pricing, availability and site visits."
-5) EMOTION + FRUSTRATION:
-   If user sounds irritated, confused or hesitant:
-       - Calm them
-       - Do NOT repeat the same question
-       - Reduce pressure
-       - Suggest a simple next step (like: “you can just explore without any pressure to book”).
-6) NATURAL QUALIFICATION (INTERNAL ONLY):
-   Without sounding like interrogation:
-       - If user talks budget, timing, purpose, family size, loan/cash → treat as qualification signals.
-       - Ask light, natural questions only if user is already engaged.
-       - If user dodges or avoids → accept and move on, do not push.
-       - If user asks to talk to agent or visit → gently lean towards scheduling.
-   NEVER mention scoring, qualification or rank.
-7) SALES INTELLIGENCE:
-   Every answer should:
-       - increase clarity
-       - build comfort and trust
-       - softly move user towards site visit if appropriate
-       - never feel like pressure or script.
+2) Keep responses short (2–4 sentences)
+3) Softly increase clarity but never interrogate
+4) Accept hesitation, avoid pressure
+5) If user is confused, calm them and clarify
+6) Never hallucinate — unknown → say “advisor will confirm”
+7) If user becomes serious, you may ASK LIGHT QUESTIONS ONLY IF NATURAL
+8) If user avoids → accept and move on
+9) When clarity increases → again suggest visit softly
+
+INTERNAL:
+NEVER mention scoring, qualification or rank.
 """
 
-    messages = [{"role": "system", "content": system_prompt}]
-
-    # Add trimmed recent history for continuity
+    msgs = [{"role": "system", "content": system_prompt}]
     for h in history[-6:]:
-        messages.append({
-            "role": "assistant" if h["from"] == "bot" else "user",
-            "content": h["text"]
-        })
+        msgs.append({"role": "assistant" if h["from"] == "bot" else "user", "content": h["text"]})
+    msgs.append({"role": "user", "content": user_text})
 
-    # latest user message
-    messages.append({"role": "user", "content": user_text})
-
-    response = client.chat.completions.create(
+    res = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=messages,
+        messages=msgs,
         temperature=0.55,
         max_tokens=140,
     )
-
-    reply = response.choices[0].message.content.strip()
-
-    # store history
+    reply = res.choices[0].message.content.strip()
     append_history(phone, "user", user_text)
     append_history(phone, "bot", reply)
-
     return reply
