@@ -83,6 +83,33 @@ Reply: "I assist only with this project information, pricing or site visits."
 
     detected_lang = detect_language(user_text)
     state["language"] = detected_lang  # store for continuity
+    # =====================================
+    # SITE VISIT TRIGGER DURING AI MODE
+    # =====================================
+text_l = user_text.lower()
+
+visit_triggers = [
+    "visit", "site visit", "see property", "property visit",
+    "come and see", "want to see", "want to visit", "schedule visit",
+    "plan a visit", "plan site", "book visit", "arrange visit",
+    "meet at site", "location visit", "show me the property"
+]
+
+if any(v in text_l for v in visit_triggers):
+    state["qualified"] = True
+    state["stop_questions"] = True
+    from app.state import mark_handoff
+    mark_handoff(phone)
+
+    reply = (
+        "Great — I’ll arrange a call with our project expert who will guide you with "
+        "location, availability and site planning.\n"
+        "Please share your preferred time."
+    )
+
+    append_history(phone, "user", user_text)
+    append_history(phone, "bot", reply)
+    return reply
 
 
     # --------------- SAFETY FILTER --------------------
