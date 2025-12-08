@@ -1,6 +1,8 @@
+# app/ai_engine.py
+
 import os
 from openai import OpenAI
-from app.state import get_state, append_history
+from app.state import get_state, append_history, mark_handoff
 
 # Load API key from environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -8,6 +10,27 @@ if not OPENAI_API_KEY:
     raise Exception("OPENAI_API_KEY missing in environment variables")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+def _detect_language(text: str) -> str:
+    """
+    Very lightweight heuristic:
+    - returns "hindi", "hinglish", or "english"
+    """
+    hindi_words = [
+        "kya", "kab", "kaise", "ghar", "zameen", "flat",
+        "booking", "visit", "kal", "aaj", "weekend",
+        "paisa", "loan", "possession", "dekho", "dekhna",
+        "side", "wali", "area", "ke", "ki"
+    ]
+    t = text.lower()
+    hits = sum(1 for w in hindi_words if w in t)
+
+    if hits >= 4:
+        return "hindi"
+    if 2 <= hits < 4:
+        return "hinglish"
+    return "english"
 
 
 def call_ai(phone: str, user_text: str) -> str:
@@ -18,102 +41,47 @@ def call_ai(phone: str, user_text: str) -> str:
     - Language-aware
     - Persuasive but short
     - Real estate ONLY
-    - Emotion-aware
+    - Emotion-aware and non-pushy
     """
 
     state = get_state(phone)
-    # =====================================================
-# GLOBAL STOP MODE: NO MORE QUALIFICATION QUESTIONS
-# =====================================================
-if state.get("stop_questions") is True:
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": """
-You are Pragiti, a real estate assistant.
-
-User has either:
-- been qualified, OR
-- requested a call, OR
-- shown irritation, OR
-- skipped funnel questions
-
-RULE:
-Stop ALL qualification or probing questions.
-
-Your replies must:
-- answer only what user asks
-- be short, friendly and factual
-- no nudging or pushing
-- no new qualification questions
-- assist with availability, pricing, details or site visit
-
-If user asks irrelevant or non-real-estate topics:
-Reply: "I assist only with this project information, pricing or site visits."
-"""},
-            {"role": "user", "content": user_text}
-        ],
-        temperature=0.4,
-        max_tokens=100
-    )
-
-    reply = response.choices[0].message.content.strip()
-
-    append_history(phone, "user", user_text)
-    append_history(phone, "bot", reply)
-
-    return reply
     project = state.get("project_context")
     history = state.get("conversation_history", [])
-    rank = state.get("rank")
 
-    # ---------------- LANGUAGE DETECT -----------------
-    # Simple heuristic: detect language from user message
-    def detect_language(t: str) -> str:
-        hindi_words = ["kya", "kab", "kaise", "ghar", "zameen", "flat",
-                       "booking", "visit", "kal", "aaj", "weekend",
-                       "paisa", "loan", "possession", "area", "ke", "ki"]
-        hits = sum(1 for w in hindi_words if w in t.lower())
+    text_l = user_text.lower()
 
-        if hits >= 4:
-            return "hindi"
-        if 2 <= hits < 4:
-            return "hinglish"
-        return "english"
-
-    detected_lang = detect_language(user_text)
-    state["language"] = detected_lang  # store for continuity
     # =====================================
-    # SITE VISIT TRIGGER DURING AI MODE
+    # 1) SITE VISIT TRIGGER DURING AI MODE
     # =====================================
-text_l = user_text.lower()
+    visit_triggers = [
+        "visit", "site visit", "see property", "property visit",
+        "come and see", "want to see", "want to visit", "schedule visit",
+        "plan a visit", "plan site", "book visit", "arrange visit",
+        "meet at site", "location visit", "show me the property",
+        "call me", "i want call", "talk to executive", "talk to agent"
+    ]
 
-visit_triggers = [
-    "visit", "site visit", "see property", "property visit",
-    "come and see", "want to see", "want to visit", "schedule visit",
-    "plan a visit", "plan site", "book visit", "arrange visit",
-    "meet at site", "location visit", "show me the property"
-]
+    if any(v in text_l for v in visit_triggers):
+        state["qualified"] = True
+        state["stop_questions"] = True
+        state["ai_mode"] = False
 
-if any(v in text_l for v in visit_triggers):
-    state["qualified"] = True
-    state["stop_questions"] = True
-    from app.state import mark_handoff
-    mark_handoff(phone)
+        mark_handoff(phone)
 
-    reply = (
-        "Great — I’ll arrange a call with our project expert who will guide you with "
-        "location, availability and site planning.\n"
-        "Please share your preferred time."
-    )
+        reply = (
+            "Great — I’ll arrange a call with our project expert who will guide you with "
+            "availability, exact location and site visit planning.\n"
+            "Please share your preferred time."
+        )
 
-    append_history(phone, "user", user_text)
-    append_history(phone, "bot", reply)
-    return reply
+        append_history(phone, "user", user_text)
+        append_history(phone, "bot", reply)
+        return reply
 
-
-    # --------------- SAFETY FILTER --------------------
-    if any(w in user_text.lower() for w in [
+    # =====================================
+    # 2) SAFETY FILTER: PERSONAL / INTERNAL
+    # =====================================
+    if any(w in text_l for w in [
         "who are you",
         "real name",
         "where do you live",
@@ -123,154 +91,159 @@ if any(v in text_l for v in visit_triggers):
         "personal details",
         "login details",
         "password",
-        "openai account"
+        "openai account",
+        "account details"
     ]):
         reply = (
-            "I am Pragiti, your property assistant. I help only with project "
-            "details, pricing, availability and site visits. I don’t share personal or unrelated data."
+            "I am Pragiti, your real estate assistant. I help only with this project’s "
+            "information, pricing, availability and site visits. I don’t share personal or internal data."
         )
+        append_history(phone, "user", user_text)
         append_history(phone, "bot", reply)
         return reply
 
-    # If no project info, fallback
+    # =====================================
+    # 3) MISSING PROJECT CONTEXT SAFETY
+    # =====================================
     if not project:
         reply = (
-            "Tell me which project you are exploring, and I’ll guide you with pricing, availability and visit planning."
+            "Tell me which project you’re exploring, and I’ll guide you with pricing, availability and visit planning."
         )
+        append_history(phone, "user", user_text)
         append_history(phone, "bot", reply)
         return reply
 
+    # =====================================
+    # 4) LANGUAGE DETECTION + STORE
+    # =====================================
+    lang = _detect_language(user_text)
+    state["language"] = lang
 
-    # ---------------------- SYSTEM PROMPT -----------------------
+    lang_hint = {
+        "english": "Reply in natural English.",
+        "hindi": "Reply purely in comfortable conversational Hindi.",
+        "hinglish": "Reply in natural Hinglish (mix of Hindi and English) like people chat on WhatsApp."
+    }.get(lang, "Reply in natural English.")
 
-    system_prompt = f"""
-You are PRAGITI, a HUMAN-LIKE real estate sales assistant.
+    # =====================================
+    # 5) STOP MODE: NO MORE QUALIFICATION
+    # =====================================
+    if state.get("stop_questions") is True:
+        # Support-only mode: no more probing, no persuasion
+        system_prompt = f"""
+You are Pragiti, a real estate assistant.
 
-STRICT RULES:
-1) ALWAYS answer in the SAME language as LAST USER MESSAGE:
-   english / hindi / hinglish. Detect automatically.
+User has either:
+- already been qualified, OR
+- requested a call/visit, OR
+- shown irritation, OR
+- avoided qualification questions.
 
-2) Use ONLY the following verified project details:
-   NAME: {project.get("name")}
-   LOCATION: {project.get("location")}
-   PRICE RANGE: {project.get("price_range")}
-   UNIT TYPES: {project.get("unit_types")}
-   STATUS: {project.get("status")}
-   USP / AMENITIES: {project.get("usp")}
+RULE:
+Stop ALL qualification or probing questions.
 
-3) NO HALLUCINATION:
-   If a detail is unknown, say:
-   "I will confirm this on call with our advisor."
-   NEVER invent approvals, builder history, distances, EMI partners or future developments.
+Your replies must:
+- answer only what the user asks
+- be short, friendly and factual
+- no nudging, no persuasion
+- no new qualification questions
+- assist only with information, availability or support
+- if user asks for call/visit, politely confirm and say our expert will call.
 
-4) REAL ESTATE ONLY:
-   If user asks ANYTHING unrelated to this project (tech, jokes, gossip, politics, philosophy, math, personal info),
-   reply politely:
-   "I assist only with this real estate project, pricing, availability and site visits."
-
-5) ANSWER STYLE:
-   - MAX 2–4 sentences total
-   - Short factual answer FIRST
-   - THEN soft persuasive nudge (example: “A short visit gives clarity with no obligation.”)
-   - Friendly tone, not robotic
-   - Human natural phrasing
-   - Use low tokens
-   - Avoid bullet lists unless necessary
-
-6) SHORT ANSWERS RULE:
-   If a VERY SHORT answer is sufficient, KEEP IT SHORT.
-   Example:
-       USER: “Is this project in Patna?”
-       ANSWER: “Yes, it is located in Saguna More, Patna. If you like, I can help you plan a short visit.”
-
-7) EMOTION + FRUSTRATION:
-   If user sounds irritated, confused, upset or hesitant:
-       - Calm them
-       - Avoid repeating same question
-       - Reduce pressure
-       - Propose simple forward steps
-
-8) INTERNAL QUALIFICATION:
-   Without showing it explicitly to user:
-       - If user gives budget → treat as qualification data
-       - If user asks serious questions → increase seriousness
-       - If user expresses urgency → treat as HOT
-       - If user avoids sharing details → continue softly, do not interrogate
-       - If user asks to talk to agent → recommend handoff
-
-   DO NOT mention scoring, qualification, or rank.
-
-9) SALES INTELLIGENCE:
-   Every answer should help nudge user:
-       - toward clarity
-       - toward sharing a detail naturally
-       - toward scheduling a site visit
-       - without pressure or interrogation
+Real-estate only. Ignore unrelated topics.
+{lang_hint}
 """
 
+        messages = [{"role": "system", "content": system_prompt}]
+        for h in history[-6:]:
+            messages.append({
+                "role": "assistant" if h["from"] == "bot" else "user",
+                "content": h["text"]
+            })
+        messages.append({"role": "user", "content": user_text})
 
-    # ---------------- MESSAGE BUILD ----------------
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.4,
+            max_tokens=100,
+        )
+
+        reply = response.choices[0].message.content.strip()
+        append_history(phone, "user", user_text)
+        append_history(phone, "bot", reply)
+        return reply
+
+    # =====================================
+    # 6) NORMAL AI MODE (WITH QUALIFICATION)
+    # =====================================
+    system_prompt = f"""
+You are PRAGITI, a HUMAN-LIKE real estate sales assistant for EstatePilot.
+
+PROJECT (FACT-ONLY):
+- Name: {project.get("name")}
+- Location: {project.get("location")}
+- Price Range: {project.get("price_range")}
+- Unit Types: {project.get("unit_types")}
+- Status: {project.get("status")}
+- Amenities / USP: {project.get("usp")}
+
+STRICT RULES:
+1) {lang_hint}
+2) Answer in MAX 2–4 sentences.
+   - First: clear factual answer.
+   - Then: a soft, non-pushy suggestion (e.g., a short visit can give clarity with no obligation).
+3) NO HALLUCINATION:
+   If you are not sure, say:
+   "Our advisor will confirm this on call."
+   Do NOT invent builder history, distances, bank tie-ups or future developments.
+4) REAL-ESTATE ONLY:
+   If user asks about unrelated topics (tech, politics, jokes, personal life, hacking, etc.),
+   reply briefly:
+   "I assist only with this real estate project, its pricing, availability and site visits."
+5) EMOTION + FRUSTRATION:
+   If user sounds irritated, confused or hesitant:
+       - Calm them
+       - Do NOT repeat the same question
+       - Reduce pressure
+       - Suggest a simple next step (like: “you can just explore without any pressure to book”).
+6) NATURAL QUALIFICATION (INTERNAL ONLY):
+   Without sounding like interrogation:
+       - If user talks budget, timing, purpose, family size, loan/cash → treat as qualification signals.
+       - Ask light, natural questions only if user is already engaged.
+       - If user dodges or avoids → accept and move on, do not push.
+       - If user asks to talk to agent or visit → gently lean towards scheduling.
+   NEVER mention scoring, qualification or rank.
+7) SALES INTELLIGENCE:
+   Every answer should:
+       - increase clarity
+       - build comfort and trust
+       - softly move user towards site visit if appropriate
+       - never feel like pressure or script.
+"""
 
     messages = [{"role": "system", "content": system_prompt}]
 
-    # Add trimmed chat history (last 6 exchanges)
+    # Add trimmed recent history for continuity
     for h in history[-6:]:
         messages.append({
             "role": "assistant" if h["from"] == "bot" else "user",
             "content": h["text"]
         })
 
-    # Add latest user message
+    # latest user message
     messages.append({"role": "user", "content": user_text})
-
-
-    # ---------------- AI CALL ----------------
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         temperature=0.55,
-        max_tokens=130
-    )
-# =====================================================
-# GLOBAL STOP MODE: NO MORE QUALIFICATION QUESTIONS
-# =====================================================
-if state.get("stop_questions") is True:
-    # AI reply should NOT ask any more probing questions
-    # Only answer user queries politely and SHORT
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": """
-You are Pragiti, a real estate assistant.
-
-RULE:
-User has completed qualification OR shown irritation.
-STOP asking qualification questions.
-
-Your replies must:
-- be short, factual and polite
-- no funnel questions
-- no nudging
-- no persuasion
-- assist only with information, availability, or support
-- if user asks for call/visit, politely confirm
-"""},
-            {"role": "user", "content": user_text}
-        ],
-        temperature=0.4,
-        max_tokens=90
+        max_tokens=140,
     )
 
     reply = response.choices[0].message.content.strip()
-    append_history(phone, "user", user_text)
-    append_history(phone, "bot", reply)
-    return reply
 
-    reply = response.choices[0].message.content.strip()
-
-    # ---------------- STORE HISTORY ----------------
-
+    # store history
     append_history(phone, "user", user_text)
     append_history(phone, "bot", reply)
 
