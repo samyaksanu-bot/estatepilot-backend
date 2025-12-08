@@ -67,6 +67,18 @@ async def receive_message(request: Request):
 
         # Load current state
         state = get_state(from_number)
+              # ============= ATTACH TEMP PROJECT FOR TESTING =============
+        if not state.get("project_context"):
+            state["project_context"] = {
+                "name": "Greenwood Residency",
+                "location": "Patna — Saguna More",
+                "price_range": "48L onwards",
+                "unit_types": "2BHK & 3BHK",
+                "usp": "clubhouse, parking, gated security, landscaped gardens, lift",
+                "status": "ready to move"
+            }
+        # ============================================================
+
 
         # Dedup: ignore same message id
         if state.get("last_message_id") == message_id:
