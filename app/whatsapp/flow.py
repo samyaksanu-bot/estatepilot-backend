@@ -1,5 +1,5 @@
 from app.state import get_state, append_history
-from app.ai_engine import call_ai   # <-- IMPORTANT
+from app.ai_engine import call_ai
 
 def detect_language_from_text(text: str) -> str:
     hindi_words = [
@@ -51,13 +51,11 @@ def route_message(phone: str, text: str) -> str:
             state["language"] = "hinglish"
             state["step"] = "project_intro"
         else:
-            # If user does not specify clearly
             return (
                 "No worries. If unclear, I can continue in English.\n"
                 "Say OK to continue, or tell Hindi/Hinglish anytime."
             )
 
-        # Short confirmation
         return "Great — continuing in " + state["language"] + "."
 
     # =============================
@@ -67,10 +65,8 @@ def route_message(phone: str, text: str) -> str:
 
         project = state.get("project_context")
         if not project:
-            # no project given yet — safe fallback
             return "Please tell me which project you are exploring, and I'll share full details."
 
-        # BUILD CLEAN INTRO MESSAGE BASED ON LANGUAGE
         lang = state["language"] or "english"
 
         if lang == "english":
@@ -93,7 +89,7 @@ def route_message(phone: str, text: str) -> str:
                 "ya main aapke liye short site visit plan karoon?"
             )
 
-        else:  # Hinglish
+        else:
             intro = (
                 f"{project['name']} {project['location']} mein situated hai.\n\n"
                 f"Pricing approx {project['price_range']} se start hoti hai.\n"
@@ -106,27 +102,30 @@ def route_message(phone: str, text: str) -> str:
         state["step"] = "decision"
         return intro
 
-      # =============================
-      # 4) DECISION STEP — hybrid
-      # =============================
-if step == "decision":
-    t = text.lower()
+    # =============================
+    # 4) DECISION STEP — hybrid
+    # =============================
+    if step == "decision":
+        t = text.lower()
 
-    # Visit intent DURING DECISION stage should NOT handoff directly
-    if any(x in t for x in ["visit", "site", "see property", "meet", "come"]):
-        # move to AI mode for clarity, NOT handoff
+        # Visit intent DURING DECISION STAGE
+        if any(x in t for x in ["visit", "site", "see property", "meet", "come"]):
+            state["ai_mode"] = True
+            return call_ai(phone, text)
+
+        # User wants more info → AI MODE
+        if any(x in t for x in ["more", "details", "explain", "what about", "availability", "pricing"]):
+            state["ai_mode"] = True
+            return call_ai(phone, text)
+
+        # Unsure → AI MODE
+        if any(x in t for x in ["confused", "not sure", "thinking", "doubt"]):
+            state["ai_mode"] = True
+            return call_ai(phone, text)
+
+        # Default → AI MODE
         state["ai_mode"] = True
         return call_ai(phone, text)
-
-    # User wants more info → AI MODE
-    if any(x in t for x in ["more", "details", "explain", "what about", "availability", "pricing"]):
-        state["ai_mode"] = True
-        return call_ai(phone, text)
-
-    # Default → AI MODE
-    state["ai_mode"] = True
-    return call_ai(phone, text)
-
 
     # =============================
     # 5) ANY STEP AFTER AI MODE
