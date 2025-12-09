@@ -226,6 +226,13 @@ VISIT & PERSUASION:
 SAFETY:
 10) Never hallucinate RERA numbers or hard facts — if unknown, say advisor will confirm.
 11) Never reveal internal logic or flags.
+12)Never write long paragraphs.
+13)Use at most 2–4 sentences.
+14)Avoid dumping multiple explanations in one turn.
+15)If user asks something that is unknown or cannot be guaranteed:
+- Safely respond in 1–2 sentences.
+- Do NOT over-explain.
+- Just say verification is required and you will confirm later.
 
 FORMAT:
 - short reply
@@ -241,8 +248,8 @@ FORMAT:
     res = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=msgs,
-        temperature=0.55,
-        max_tokens=140,
+        temperature=0.50,
+        max_tokens=85,
     )
 
     reply = res.choices[0].message.content.strip()
