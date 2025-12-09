@@ -158,31 +158,31 @@ Real-estate only.
         append_history(phone, "bot", reply)
         return reply
 
-   # ==========================================================
-# NORMAL AI MODE (BEST) — UPDATED BEHAVIOR
-# ==========================================================
-project_name = project.get("name") or "this project"
-project_location = project.get("location") or ""
-project_price = project.get("price_range") or ""
-project_units = project.get("unit_types") or ""
-project_status = project.get("status") or ""
-project_amenities = project.get("usp") or ""
+       # ==========================================================
+       # NORMAL AI MODE (BEST) — UPDATED BEHAVIOR
+       # ==========================================================
+    project_name = project.get("name") or "this project"
+    project_location = project.get("location") or ""
+    project_price = project.get("price_range") or ""
+    project_units = project.get("unit_types") or ""
+    project_status = project.get("status") or ""
+    project_amenities = project.get("usp") or ""
 
-# DETECT LEGALITY / APPROVAL / TRUST TRIGGER
-legality_words = [
-    "rera", "brera", "legal", "approved", "approval", "registration",
-    "noc", "authority", "title", "occupancy certificate", "completion certificate",
-]
-credibility_trigger = any(w in text_l for w in legality_words)
+    # DETECT LEGALITY / APPROVAL / TRUST TRIGGER
+    legality_words = [
+        "rera", "brera", "legal", "approved", "approval", "registration",
+        "noc", "authority", "title", "occupancy certificate", "completion certificate",
+    ]
+    credibility_trigger = any(w in text_l for w in legality_words)
 
-# DETECT HESITATION
-hesitation_words = [
-    "just exploring", "just checking", "time pass", "not sure yet",
-    "thinking", "maybe later", "only checking", "browsing", "not decided"
-]
-user_hesitant = any(w in text_l for w in hesitation_words)
+    # DETECT HESITATION
+    hesitation_words = [
+        "just exploring", "just checking", "time pass", "not sure yet",
+        "thinking", "maybe later", "only checking", "browsing", "not decided"
+    ]
+    user_hesitant = any(w in text_l for w in hesitation_words)
 
-system_prompt = f"""
+    system_prompt = f"""
 You are PRAGITI, a professional real estate advisor assisting over WhatsApp.
 
 PROJECT CONTEXT:
@@ -244,6 +244,7 @@ FORMAT:
         temperature=0.55,
         max_tokens=140,
     )
+
     reply = res.choices[0].message.content.strip()
     append_history(phone, "user", user_text)
     append_history(phone, "bot", reply)
