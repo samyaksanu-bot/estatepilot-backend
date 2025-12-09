@@ -43,20 +43,22 @@ def route_message(phone: str, text: str) -> str:
 
         if t in ["english", "eng", "en"]:
             state["language"] = "english"
-            state["step"] = "project_intro"
         elif t in ["hindi", "hin", "hi"]:
             state["language"] = "hindi"
-            state["step"] = "project_intro"
         elif t in ["hinglish", "mix"]:
             state["language"] = "hinglish"
-            state["step"] = "project_intro"
         else:
+            # FIXED: No OK confirmation — flow continues naturally
+            state["language"] = "english"
+            state["step"] = "project_intro"
             return (
-                "No worries. If unclear, I can continue in English.\n"
-                "Say OK to continue, or tell Hindi/Hinglish anytime."
+                "No worries, I’ll continue in English for now.\n"
+                "You can switch to Hindi or Hinglish anytime."
             )
 
-        return "Great — continuing in " + state["language"] + "."
+        # FIXED: Immediately move to next step without waiting
+        state["step"] = "project_intro"
+        return f"Sure, I’ll continue in {state['language']}. Let’s move ahead."
 
     # =============================
     # 3) PROJECT INTRODUCTION STEP
@@ -108,6 +110,12 @@ def route_message(phone: str, text: str) -> str:
     if step == "decision":
         t = text.lower()
 
+        # **NEW BLOCK — LEGALITY / RERA detection**
+        if any(x in t for x in ["rera", "approved", "legal", "permission", "authority", "registration", "brera"]):
+            state["ai_mode"] = True
+            state["credibility_trigger"] = True
+            return call_ai(phone, text)
+
         # Visit intent DURING DECISION STAGE
         if any(x in t for x in ["visit", "site", "see property", "meet", "come"]):
             state["ai_mode"] = True
@@ -131,8 +139,11 @@ def route_message(phone: str, text: str) -> str:
     # 5) ANY STEP AFTER AI MODE
     # =============================
     if state.get("ai_mode") is True:
+        # IMPORTANT: do not reset state or restart intro here
         return call_ai(phone, text)
 
-    # safety fallback
-    state["step"] = "intro"
-    return "Let’s restart. Which language do you prefer?"
+    # =============================
+    # SAFETY FALLBACK
+    # =============================
+    # FIXED: Never restart intro — just continue in AI mode
+    return call_ai(phone, text)
