@@ -164,4 +164,3 @@ def route_message(phone: str, text: str) -> str:
     # SAFETY FALLBACK
     # =============================
     return call_ai(phone, text)
-
