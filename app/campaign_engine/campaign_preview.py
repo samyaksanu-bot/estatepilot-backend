@@ -1,41 +1,35 @@
-from app.campaign_engine.intent_profile import build_intent_profile
-from app.campaign_engine.creative_brief import generate_creative_brief
-from app.campaign_engine.audience_builder import build_audience_plan
-from app.campaign_engine.strategy import build_campaign_strategy
+from app.campaign_engine.project_brief import build_project_brief
+from app.campaign_engine.strategy_engine import generate_strategy
+from app.campaign_engine.creative_blueprint import generate_creative_blueprint
+from app.campaign_engine.image_engine import generate_sdxl_images
 
 
 def generate_campaign_preview(project: dict) -> dict:
     """
-    SAFE campaign preview generator.
-
-    Nothing runs at import time.
-    Everything runs only when this function is called.
+    SAFE, DRY-RUN-ONLY PREVIEW.
+    Used only for debugging or builder preview.
+    Does NOT affect WhatsApp Bot or any live logic.
     """
 
-    # Step 1: intent inference
-    intent_profile = build_intent_profile(project)
+    # 1. Clean brief + missing-data warnings
+    brief = build_project_brief(project)
 
-    # Step 2: strategy
-    strategy = build_campaign_strategy(project, intent_profile)
+    # 2. Strategy (GPT-4.0)
+    strategy = generate_strategy(brief)
 
-    # Step 3: creative
-    creative_brief = generate_creative_brief(
-        project=project,
-        intent_profile=intent_profile
-    )
+    # 3. Creative blueprint (GPT-4.0)
+    creative_blueprint = generate_creative_blueprint(brief, strategy)
 
-    # Step 4: audience plan
-    audience_plan = build_audience_plan(
-        project,
-        intent_profile
-    )
+    # 4. Visual mockups (SDXL)
+    image_outputs = generate_sdxl_images(creative_blueprint)
 
-    # FINAL RESPONSE
     return {
-        "status": "SUCCESS",
-        "intent_profile": intent_profile,
+        "status": "PREVIEW_OK",
+        "brief": brief,
         "strategy": strategy,
-        "creative_brief": creative_brief,
-        "audience_plan": audience_plan
+        "creative_blueprint": creative_blueprint,
+        "images": image_outputs
+    }
+ "audience_plan": audience_plan
     }
 
