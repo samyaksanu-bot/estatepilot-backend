@@ -29,6 +29,15 @@ def generate_full_campaign_plan(project_payload: dict) -> dict:
 
     # Step 4: SDXL image generation
     images = generate_sdxl_images(creative_blueprint)
+    # Step 4.1: Simple placeholder assembled creative (no template renderer yet)
+    final_creative = {
+        "template_id": "PLACEHOLDER",
+        "background_image": images[0]["url"] if images else None,
+        "headline": creative_blueprint.get("headline"),
+        "cta": creative_blueprint.get("cta"),
+        "price": f"{brief.get('price_min_lakh')}–{brief.get('price_max_lakh')} Lakh"
+        if brief.get("price_min_lakh") and brief.get("price_max_lakh") else None
+    }
 
     # Step 5: Meta Ads final manual setup blueprint
     final_campaign_plan = {
@@ -55,10 +64,17 @@ def generate_full_campaign_plan(project_payload: dict) -> dict:
     }
 
     return {
-        "status": "SUCCESS",
-        "project_brief": brief,
-        "strategy": strategy,
-        "creative_blueprint": creative_blueprint,
-        "image_assets": images,
-        "final_campaign_plan": final_campaign_plan
-    }
+  "status": "SUCCESS",
+  "project_brief": { ... },
+  "strategy": { ... },
+  "creative_blueprint": { ... },
+  "image_assets": [ ... ],
+  "final_creative": {
+      "template_id": "PLACEHOLDER",
+      "background_image": "https://via.placeholder.com/1080",
+      "headline": "Project Name...",
+      "cta": "Check Availability",
+      "price": "65–80 Lakh"
+  },
+  "final_campaign_plan": { ... }
+}
