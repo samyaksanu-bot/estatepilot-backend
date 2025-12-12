@@ -1,168 +1,146 @@
 # app/campaign_engine/creative_blueprint.py
-
 from typing import Dict, Any
 from app.ai_engine import call_gpt_json
 
-# -------------------------------------------------------------------
-# 1. Deterministic, fact-safe visual recipe (Python-first, no hallucination)
-# -------------------------------------------------------------------
-def _build_final_visual_recipe(brief: Dict[str, Any]) -> Dict[str, Any]:
-    prop_type = (brief.get("property_type") or brief.get("type") or "").lower()
-    show_price = bool(brief.get("price_min_lakh") and brief.get("price_max_lakh"))
+def _safe_str(v: Any) -> str:
+    return "" if v is None else str(v)
 
-    if prop_type == "plot":
-        primary_visual = "map"
-        template_hint = "STATIC_MAP_FOCUS"
-    else:
-        primary_visual = "elevation"
-        template_hint = "STATIC_ELEVATION_FOCUS"
+def _safe_list(v: Any) -> list:
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return v
+    return [v]
 
-    show_amenities = bool(brief.get("amenities"))
-
-    return {
-        "primary_visual": primary_visual,
-        "template_hint": template_hint,
-        "show_price": show_price,
-        "show_amenities": show_amenities,
-        "visual_style": "modern_residential" if prop_type != "plot" else "open_landscape",
-        "mood": "trust_building_realistic",
-        "lighting": "soft_daylight"
-    }
-
-
-# -------------------------------------------------------------------
-# 2. GPT Strict Prompt — No hallucination allowed
-# -------------------------------------------------------------------
 def _build_fact_safe_prompt(brief: Dict[str, Any], strategy: Dict[str, Any]) -> str:
-    amenities = brief.get("amenities") or []
-
+    amenities = _safe_list(brief.get("amenities"))
     price_min = brief.get("price_min_lakh")
     price_max = brief.get("price_max_lakh")
     price_string = "Not provided"
     if price_min and price_max:
         price_string = f"{price_min}–{price_max} Lakhs"
 
+    project_name = _safe_str(brief.get("project_name"))
+    location = _safe_str(brief.get("location"))
+    prop_type = _safe_str(brief.get("property_type") or brief.get("type"))
+    buyer_persona = _safe_str(brief.get("buyer_persona"))
+    buyer_conf = _safe_str(brief.get("buyer_persona_confidence"))
+    zone = _safe_str(brief.get("zone"))
+    zone_conf = _safe_str(brief.get("zone_confidence"))
+
     return f"""
-You are EstatePilot's Creative Blueprint Generator.
+You are EstatePilot's Creative Blueprint Generator for REAL ESTATE ADVERTISING.
 
-STRICT FACT RULES:
-- DO NOT invent amenities. Allowed amenities ONLY: {amenities}.
-- DO NOT add towers, floors, unit sizes, luxury elements not provided.
-- DO NOT add ocean, mountain, mall, skyline, forest, lake or fake surroundings.
-- DO NOT fabricate RERA details.
-- Price MUST remain EXACT: {price_string}.
-- Visuals must be realistic, trustworthy and simple.
+STRICT RULES:
+- DO NOT invent amenities. Use ONLY these confirmed amenities: {amenities}.
+- DO NOT create fake luxury visuals, water bodies, mountain views, skyline views, or greenery not confirmed.
+- DO NOT infer RERA details.
+- DO NOT change price. Use EXACT project price: {price_string}.
+- DO NOT add floors, towers, unit sizes or materials not mentioned.
+- You may phrase visuals aesthetically, but CANNOT invent factual elements.
 
-OUTPUT JSON SCHEMA:
+GOAL:
+Return a creative blueprint that the image model will use to create ad visuals.
+
+MANDATORY OUTPUT STRUCTURE:
 {{
   "headline": str,
-  "subheadline": str | null,
+  "subheadline": str|null,
   "cta": "Check Availability on WhatsApp",
   "visual_focus": str,
   "layout_style": str,
-  "allowed_elements": [str,...],
-  "forbidden_elements": [str,...],
+  "allowed_elements": [...],
+  "forbidden_elements": [...],
   "sdxl_prompt": str,
   "sdxl_negative_prompt": str,
-  "tone_keywords": [str,...],
-  "color_palette": [str,...],
+  "tone_keywords": [...],
+  "color_palette": [...],
   "reasoning": str
 }}
 
-PROJECT FACTS:
-Project Name: {brief.get("project_name")}
-Location: {brief.get("location")}
-Property Type: {brief.get("property_type")}
+ABOUT THE PROJECT (FACTUAL ONLY):
+Project Name: {project_name}
+Location: {location}
+Property Type: {prop_type}
 Price: {price_string}
-Amenities (strict list): {amenities}
-Buyer Persona: {brief.get("buyer_persona")}
-Zone: {brief.get("zone")}
+Amenities (strict): {amenities}
+Buyer Persona: {buyer_persona} (confidence: {buyer_conf})
+Zone Hint: {zone} (confidence: {zone_conf})
 
 STRATEGY INPUT:
-Messaging pillars: {strategy.get("messaging_pillars")}
-Core angle: {strategy.get("core_angle")}
+Core angle: {_safe_str(strategy.get('core_angle'))}
+Messaging pillars: {_safe_str(strategy.get('messaging_pillars'))}
+Lead form emphasis: {_safe_str(strategy.get('lead_form'))}
 """
 
-# -------------------------------------------------------------------
-# 3. Assemble SDXL Prompt (safe Python rules)
-# -------------------------------------------------------------------
-def _build_sdxl_from_recipe(brief: Dict[str, Any], recipe: Dict[str, Any]) -> Dict[str, str]:
-    project = brief.get("project_name") or "Project"
-    location = brief.get("location") or ""
-    prop_type = brief.get("property_type") or brief.get("type") or ""
-
-    base = (
-        f"Realistic architectural visual of {project}, {prop_type}, located in {location}. "
-        f"Style: {recipe['visual_style']}. Mood: {recipe['mood']}. Lighting: {recipe['lighting']}. "
-    )
-
-    if recipe["primary_visual"] == "elevation":
-        base += "Focus on clean front elevation. No invented skyline."
-    else:
-        base += "Top-down or angled map/plot visualization. No invented surroundings."
-
-    neg = (
-        "No mountains, no oceans, no malls, no skyline, no luxury elements not provided, "
-        "no celebrities, no invented amenities, no dramatic effects, no glossy reflection."
-    )
-
-    return {"sdxl_prompt": base, "sdxl_negative_prompt": neg}
-
-
-# -------------------------------------------------------------------
-# 4. MAIN FUNCTION — FINAL CREATIVE BLUEPRINT
-# -------------------------------------------------------------------
 def generate_creative_blueprint(brief: Dict[str, Any], strategy: Dict[str, Any]) -> Dict[str, Any]:
-
-    # Python-first factual visual recipe
-    recipe = _build_final_visual_recipe(brief)
-
-    # Build strict GPT system prompt
     system_prompt = _build_fact_safe_prompt(brief, strategy)
 
-    user_prompt = "Generate the creative blueprint JSON. Follow schema strictly. No extra text."
+    user_prompt = """
+Generate a REAL ESTATE AD creative blueprint.
+Use EXACT factual information; NEVER invent any details.
+Follow the mandatory output schema strictly.
+Return ONLY valid JSON.
+"""
 
-    gpt_resp = call_gpt_json(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        model="gpt-4.1",
-        temperature=0.0,
-        max_tokens=500,
-        retries=1
-    )
+    try:
+        response = call_gpt_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model="gpt-4.1",
+            temperature=0.0,
+            max_tokens=500,
+            retries=2
+        )
+    except Exception as e:
+        response = {"error": f"call_gpt_json_exception: {str(e)}"}
 
-    # If GPT failed → fallback safe template
-    if not isinstance(gpt_resp, dict) or gpt_resp.get("error"):
-        fallback_sdxl = _build_sdxl_from_recipe(brief, recipe)
+    # Validate response
+    if not isinstance(response, dict) or response.get("error"):
+        # safe fallback
         return {
-            "final_visual_recipe": recipe,
-            "headline": brief.get("project_name", "New Project"),
+            "headline": brief.get("project_name", "New Residential Project"),
             "subheadline": brief.get("location"),
             "cta": "Check Availability on WhatsApp",
-            "visual_focus": "front elevation",
+            "visual_focus": "front elevation silhouette",
             "layout_style": "clean grid",
-            "allowed_elements": ["realistic elevation", "soft daylight"],
-            "forbidden_elements": ["fake luxury", "invented amenities", "mountain views"],
-            "sdxl_prompt": fallback_sdxl["sdxl_prompt"],
-            "sdxl_negative_prompt": fallback_sdxl["sdxl_negative_prompt"],
-            "tone_keywords": ["trust", "clarity"],
-            "color_palette": ["white", "beige", "light grey"],
-            "template_hint": recipe["template_hint"],
-            "layout_hint": "hero_top_text_bottom",
-            "reasoning": "Fallback because GPT returned invalid JSON."
+            "allowed_elements": [_safe_str(a) for a in _safe_list(brief.get("amenities"))],
+            "forbidden_elements": [
+                "fake luxury", "invented amenities", "celebrity models",
+                "mountain views", "ocean", "mall"
+            ],
+            "sdxl_prompt": (
+                f"realistic, clean architectural visual of a residential building in "
+                f"{_safe_str(brief.get('location',''))}, neutral daylight, no luxury effects, no fake scenery"
+            ),
+            "sdxl_negative_prompt": "fake luxury, mountains, skyline, mall, invented amenities",
+            "tone_keywords": ["trust", "clarity", "neutral", "reliable"],
+            "color_palette": ["white", "light grey", "soft beige"],
+            "reasoning": "Fallback safe template because model returned invalid response."
         }
 
-    # Merge GPT response with SDXL recipe
-    sdxl = _build_sdxl_from_recipe(brief, recipe)
-
-    gpt_resp["final_visual_recipe"] = recipe
-    gpt_resp["sdxl_prompt"] = sdxl["sdxl_prompt"]
-    gpt_resp["sdxl_negative_prompt"] = sdxl["sdxl_negative_prompt"]
-    gpt_resp["template_hint"] = recipe["template_hint"]
-    gpt_resp["layout_hint"] = (
-        "hero_top_text_bottom"
-        if recipe["primary_visual"] == "elevation"
-        else "map_top_details_bottom"
-    )
-
-    return gpt_resp
+    # Final safety: coerce keys and types
+    res = {}
+    res["headline"] = _safe_str(response.get("headline") or response.get("title") or brief.get("project_name", "Project"))
+    res["subheadline"] = response.get("subheadline") or _safe_str(brief.get("location"))
+    res["cta"] = response.get("cta") or "Check Availability on WhatsApp"
+    res["visual_focus"] = _safe_str(response.get("visual_focus") or "front elevation silhouette")
+    res["layout_style"] = _safe_str(response.get("layout_style") or "clean grid")
+    res["allowed_elements"] = _safe_list(response.get("allowed_elements") or brief.get("amenities") or [])
+    res["forbidden_elements"] = _safe_list(response.get("forbidden_elements") or [])
+    res["sdxl_prompt"] = _safe_str(response.get("sdxl_prompt") or response.get("prompt") or "")
+    res["sdxl_negative_prompt"] = _safe_str(response.get("sdxl_negative_prompt") or response.get("negative_prompt") or "")
+    res["tone_keywords"] = _safe_list(response.get("tone_keywords") or [])
+    res["color_palette"] = _safe_list(response.get("color_palette") or [])
+    res["reasoning"] = _safe_str(response.get("reasoning") or "Generated by EstatePilot creative blueprinter.")
+    # also pass back final_visual_recipe if model provided
+    res["final_visual_recipe"] = response.get("final_visual_recipe") or response.get("visual_recipe") or {
+        "primary_visual": "elevation",
+        "template_hint": "STATIC_ELEVATION_FOCUS",
+        "show_price": True,
+        "show_amenities": True,
+        "visual_style": "modern_residential",
+        "mood": "trust_building_realistic",
+        "lighting": "soft_daylight"
+    }
+    return res
