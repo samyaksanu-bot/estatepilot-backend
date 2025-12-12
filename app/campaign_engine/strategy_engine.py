@@ -4,15 +4,23 @@ from typing import Dict, Any
 from app.ai_engine import call_gpt_json
 
 
+def _safe_lower(value):
+    """Utility: always return a safe lowercase string."""
+    return str(value or "").lower()
+
+
 def _deterministic_radius(brief: Dict[str, Any]) -> Dict[str, int]:
     def mid(a, b): return (a + b) // 2
 
     price_min = brief.get("price_min_lakh") or 0
     price_max = brief.get("price_max_lakh") or 0
-    prop_type = (brief.get("type") or brief.get("property_type") or "").lower()
-    zone_hint = brief.get("zone", "").lower()
+
+    prop_type = _safe_lower(brief.get("type") or brief.get("property_type"))
+    zone_hint = _safe_lower(brief.get("zone"))
+
+    notes = _safe_lower(brief.get("notes"))
     infra = brief.get("future_infrastructure", False) or any(
-        kw in (brief.get("notes","") or "").lower() for kw in ["highway", "metro", "ring road", "airport", "expressway", "industrial corridor"]
+        kw in notes for kw in ["highway", "metro", "ring road", "airport", "expressway", "industrial corridor"]
     )
 
     if prop_type == "plot":
@@ -119,9 +127,9 @@ def generate_strategy(brief: Dict[str, Any]) -> Dict[str, Any]:
         retries=2
     )
 
-    # fallback
+    # FALLBACK
     if not isinstance(resp, dict) or resp.get("error"):
-        fallback = {
+        return {
             "persona": "mixed_buyer",
             "intent_level": "medium",
             "property_type": brief.get("type") or brief.get("property_type") or "flat",
@@ -158,9 +166,8 @@ def generate_strategy(brief: Dict[str, Any]) -> Dict[str, Any]:
                 "qualification_priority": ["budget", "timeline"]
             }
         }
-        return fallback
 
-    # safe patching
+    # REQUIRED KEYS
     required_top = [
         "persona", "intent_level", "property_type", "targeting",
         "placements", "budget_plan", "lead_form",
@@ -169,6 +176,7 @@ def generate_strategy(brief: Dict[str, Any]) -> Dict[str, Any]:
     for k in required_top:
         resp.setdefault(k, None)
 
+    # TARGETING SAFE DEFAULTS
     targeting = resp.get("targeting") or {}
     targeting.setdefault("target_radius_km", radius)
     targeting.setdefault("behavior_filters", ["likely_to_move"])
@@ -176,6 +184,7 @@ def generate_strategy(brief: Dict[str, Any]) -> Dict[str, Any]:
     targeting.setdefault("age_filter", [28, 55])
     resp["targeting"] = targeting
 
+    # PLACEMENTS SAFE DEFAULTS
     placements = resp.get("placements") or {}
     default_placements = {
         "facebook_feed": True,
@@ -189,12 +198,14 @@ def generate_strategy(brief: Dict[str, Any]) -> Dict[str, Any]:
         placements.setdefault(k, v)
     resp["placements"] = placements
 
+    # BUDGET SAFE
     bp = resp.get("budget_plan") or {}
     bp.setdefault("daily", 1000)
     bp.setdefault("total", None)
     bp.setdefault("currency", "INR")
     resp["budget_plan"] = bp
 
+    # LEAD FORM SAFE
     lf = resp.get("lead_form") or []
     if not lf:
         lf = [
@@ -203,6 +214,7 @@ def generate_strategy(brief: Dict[str, Any]) -> Dict[str, Any]:
         ]
     resp["lead_form"] = lf
 
+    # CREATIVE COPY SAFE
     cc = resp.get("creative_copy") or {}
     cc.setdefault("headline", f"{brief.get('project_name') or 'Project'} — Check Price & Availability")
     cc.setdefault("primary_text", "Contact to know price, site visit, and floor plans.")
@@ -210,6 +222,7 @@ def generate_strategy(brief: Dict[str, Any]) -> Dict[str, Any]:
     cc.setdefault("cta", "Book Site Visit")
     resp["creative_copy"] = cc
 
+    # WHATSAPP NOTES SAFE
     wbn = resp.get("whatsapp_bot_notes") or {}
     wbn.setdefault("what_to_emphasize", ["price", "location"])
     wbn.setdefault("what_to_avoid", ["fabricated facts"])
@@ -217,4 +230,3 @@ def generate_strategy(brief: Dict[str, Any]) -> Dict[str, Any]:
     resp["whatsapp_bot_notes"] = wbn
 
     return resp
-
