@@ -1,185 +1,142 @@
 # app/campaign_engine/image_engine.py
-"""
-Production-ready image engine for EstatePilot Pillar-2.
-
-Function:
-    generate_sdxl_images(image_spec: dict) -> List[dict]
-
-Behavior:
-- Uses OpenAI Images API (model "gpt-image-1") to generate images in three sizes:
-    - 1080x1080 (square)      -> "square"
-    - 1080x1920 (vertical)    -> "vertical"
-    - 1200x628 (landscape)    -> "landscape"
-- If OPENAI_API_KEY is missing or generation fails, returns placeholder images
-  (keeps pipeline functional during testing).
-- Each returned dict contains:
-    - status: "success"|"failed"|"error"
-    - format_label: "square"|"vertical"|"landscape"
-    - size: "<WxH>"
-    - url: public URL (or None)
-    - prompt_used: final prompt sent
-    - error_message: optional
-"""
 
 import os
-import time
+import base64
 from typing import Dict, Any, List
 
-try:
-    from openai import OpenAI
-except Exception:
-    OpenAI = None  # type: ignore
-
+# OpenAI client (your project uses openai.OpenAI)
+from openai import OpenAI
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-# Optional override: set IMAGE_ENGINE_MODE="stub" to ALWAYS return placeholders
-IMAGE_ENGINE_MODE = os.getenv("IMAGE_ENGINE_MODE", "").lower()  # "stub" to force placeholders
+if not OPENAI_API_KEY:
+    # will fall back to placeholder mode
+    CLIENT = None
+else:
+    CLIENT = OpenAI(api_key=OPENAI_API_KEY)
 
-# Placeholder generator (keeps API-independent pipeline running)
-def _placeholder_asset(format_label: str, size: str) -> Dict[str, Any]:
-    # Use via.placeholder.com for quick placeholders
-    dims = size.split("x")
-    width = dims[0]
+PLACEHOLDER_URLS = {
+    "square": "https://via.placeholder.com/1080",
+    "vertical": "https://via.placeholder.com/1080x1920",
+    "landscape": "https://via.placeholder.com/1200x628"
+}
+
+def _safe_str(v):
+    return "" if v is None else str(v)
+
+def _to_base64_from_openai_result(item: Dict[str, Any]) -> str:
+    # New OpenAI images.generate returns b64_json in many SDKs
+    b64 = item.get("b64_json") or item.get("b64") or item.get("b64_string")
+    if b64:
+        return b64
+    # older clients may return url only
+    return None
+
+def _placeholder_asset(format_label: str):
     return {
         "status": "placeholder",
         "format_label": format_label,
-        "size": size,
-        "url": f"https://via.placeholder.com/{width}",
+        "size": "placeholder",
+        "url": PLACEHOLDER_URLS.get(format_label, "https://via.placeholder.com/1080"),
+        "base64": None,
         "prompt_used": None,
-        "error_message": "Placeholder used (no image engine available)."
+        "error_message": "Placeholder used (image engine not available or failed)."
     }
 
-
-# Internal single-image generator wrapper
-def _call_openai_image(prompt: str, negative_prompt: str, size: str, model: str = "gpt-image-1") -> Dict[str, Any]:
+def _call_openai_image(prompt: str, size: str = "1024x1024") -> Dict[str, Any]:
     """
-    Calls OpenAI images.generate and returns a minimal dict.
-    If OpenAI client is not available or fails, raises Exception.
+    Calls OpenAI image generation. Returns dict with possible keys:
+    - 'base64' (str) : base64 encoded PNG
+    - 'url' (str) : publicly accessible url (if returned by provider)
+    - 'error' (str) : error message
     """
-    if not OPENAI_API_KEY or OpenAI is None:
-        raise RuntimeError("OpenAI Images API not configured in this environment.")
+    if not CLIENT:
+        return {"error": "OPENAI API key missing; client not initialized."}
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    try:
+        # using OpenAI python client images.generate
+        resp = CLIENT.images.generate(
+            model="gpt-image-1",
+            prompt=prompt,
+            size=size
+        )
+        # resp.data is list-like
+        data0 = resp.data[0] if resp and getattr(resp, "data", None) else (resp["data"][0] if isinstance(resp, dict) and "data" in resp else None)
+        if not data0:
+            return {"error": "empty response from OpenAI images.generate", "raw": resp}
 
-    # Build the combined prompt with negative guidance
-    full_prompt = (
-        f"{prompt}\n\nNEGATIVE GUIDANCE: {negative_prompt}\n"
-        "Strict: Do NOT invent facts or features. No celebrity models. No mountains/beaches/malls. "
-        "Keep composition realistic for real-estate ad use. Place a small readable price overlay if provided."
-    )
+        # try to extract base64
+        b64 = None
+        # some SDKs store b64_json in data
+        if isinstance(data0, dict):
+            b64 = _to_base64_from_openai_result(data0)
+            url = data0.get("url")
+        else:
+            # dataclass-like object
+            # try attributes
+            b64 = getattr(data0, "b64_json", None) or getattr(data0, "b64", None) or getattr(data0, "url", None)
+            url = getattr(data0, "url", None) if hasattr(data0, "url") else None
 
-    # tolerant retry wrapper (2 tries)
-    for attempt in (1, 2):
-        try:
-            resp = client.images.generate(
-                model=model,
-                prompt=full_prompt,
-                size=size,
-                n=1
-            )
-            # Expect resp.data[0].url (or handle base64 in future)
-            image_url = None
-            try:
-                image_url = resp.data[0].url  # typical SDK response
-            except Exception:
-                # Attempt alternative shapes (some SDKs return b64)
-                image_url = None
+        return {"base64": b64, "url": url}
+    except Exception as e:
+        return {"error": str(e)}
 
-            return {
-                "status": "success" if image_url else "failed",
-                "size": size,
-                "url": image_url,
-                "prompt_used": full_prompt,
-                "error_message": None if image_url else "No url returned by image API"
-            }
-        except Exception as e:
-            # short backoff before retry
-            if attempt == 1:
-                time.sleep(0.8)
-                continue
-            # final failure
-            raise e
-
-
-def generate_sdxl_images(image_spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+def generate_sdxl_images(creative_blueprint: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Public function called by workflow.py.
-
-    Input: image_spec produced by static_image_generator (dict).
-    Output: list of image asset dicts (one per format).
+    Returns list of image assets for square, vertical, landscape.
+    Each item: {status, format_label, size, url, base64, prompt_used, error_message}
     """
+    prompt = _safe_str(creative_blueprint.get("sdxl_prompt") or creative_blueprint.get("prompt") or "")
+    negative = _safe_str(creative_blueprint.get("sdxl_negative_prompt") or creative_blueprint.get("negative_prompt") or "")
 
-    # If user explicitly force-stub mode, return placeholders
-    if IMAGE_ENGINE_MODE == "stub":
-        return [
-            _placeholder_asset("square", "1080x1080"),
-            _placeholder_asset("vertical", "1080x1920"),
-            _placeholder_asset("landscape", "1200x628")
-        ]
-
-    # Validate input
-    if not isinstance(image_spec, dict):
-        return [
-            _placeholder_asset("square", "1080x1080")
-        ]
-
-    prompt = image_spec.get("sdxl_prompt") or ""
-    negative = image_spec.get("sdxl_negative_prompt") or ""
-
-    # If no prompt present, return placeholders so pipeline doesn't break
+    # defensive default prompts
     if not prompt:
-        return [
-            _placeholder_asset("square", "1080x1080")
-        ]
+        prompt = "realistic architectural visual of a residential building, neutral daylight, no luxury, no invented amenities."
 
+    # Build final prompt; keep negative separate for engines that accept negative
+    final_prompt = prompt
+    if negative:
+        final_prompt = f"{prompt} --negative {negative}"
+
+    outputs = []
+
+    # sizes mapping
     formats = [
-        ("square", "1080x1080"),
-        ("vertical", "1080x1920"),
-        ("landscape", "1200x628")
+        ("square", "1024x1024"),
+        ("vertical", "1024x1792"),
+        ("landscape", "1792x1024")
     ]
 
-    results: List[Dict[str, Any]] = []
+    for label, size in formats:
+        result = _call_openai_image(final_prompt, size=size)
+        if result.get("error"):
+            outputs.append(_placeholder_asset(label))
+            continue
 
-    # If no OpenAI key, fallback to placeholders
-    if not OPENAI_API_KEY or OpenAI is None:
-        for fmt, size in formats:
-            results.append(_placeholder_asset(fmt, size))
-        return results
-
-    # Attempt to generate each image
-    for fmt, size in formats:
-        try:
-            resp = _call_openai_image(prompt=prompt + f" Aspect ratio: {size}. Use layout: {image_spec.get('layout','safe')}.",
-                                      negative_prompt=negative,
-                                      size=size)
-            # Normalize response
-            results.append({
-                "status": resp.get("status", "failed"),
-                "format_label": fmt,
-                "size": size,
-                "url": resp.get("url"),
-                "prompt_used": resp.get("prompt_used"),
-                "error_message": resp.get("error_message")
-            })
-        except Exception as exc:
-            # Logable error detail returned but do not raise — pipeline must continue
-            results.append({
-                "status": "error",
-                "format_label": fmt,
+        b64 = result.get("base64")
+        url = result.get("url")
+        if b64:
+            # return base64 string (not decoded) so higher layer can decode if needed
+            outputs.append({
+                "status": "generated",
+                "format_label": label,
                 "size": size,
                 "url": None,
-                "prompt_used": prompt,
-                "error_message": str(exc)
+                "base64": b64,
+                "prompt_used": final_prompt,
+                "error_message": None
             })
+        elif url:
+            outputs.append({
+                "status": "generated",
+                "format_label": label,
+                "size": size,
+                "url": url,
+                "base64": None,
+                "prompt_used": final_prompt,
+                "error_message": None
+            })
+        else:
+            outputs.append(_placeholder_asset(label))
 
-    # If all failed, ensure at least placeholders
-    all_failed = all(r.get("status") != "success" for r in results)
-    if all_failed:
-        return [
-            _placeholder_asset("square", "1080x1080"),
-            _placeholder_asset("vertical", "1080x1920"),
-            _placeholder_asset("landscape", "1200x628")
-        ]
-
-    return results
+    return outputs
 
