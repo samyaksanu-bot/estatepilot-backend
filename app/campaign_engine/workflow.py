@@ -28,20 +28,23 @@ def generate_full_campaign_plan(project_payload: dict) -> dict:
     creative_blueprint = generate_creative_blueprint(brief, strategy)
 
     # Step 4: SDXL image generation
-    images = generate_sdxl_images(creative_blueprint)
-    # Step 4.1: Simple placeholder assembled creative (no template renderer yet)
+    images = generate_sdxl_images(creative_blueprint) or []
+
+    # Step 4.1: Simple assembled creative (template overlay will be added later)
     final_creative = {
         "template_id": "PLACEHOLDER",
-        "background_image": images[0]["url"] if images else None,
+        "background_image": images[0]["url"] if images and isinstance(images[0], dict) else None,
         "headline": creative_blueprint.get("headline"),
         "cta": creative_blueprint.get("cta"),
-        "price": f"{brief.get('price_min_lakh')}–{brief.get('price_max_lakh')} Lakh"
-        if brief.get("price_min_lakh") and brief.get("price_max_lakh") else None
+        "price": (
+            f"{brief.get('price_min_lakh')}–{brief.get('price_max_lakh')} Lakh"
+            if brief.get("price_min_lakh") and brief.get("price_max_lakh") else None
+        )
     }
 
     # Step 5: Meta Ads final manual setup blueprint
     final_campaign_plan = {
-        "campaign_name": strategy.get("campaign_name", f"{brief.get('project_name', 'Project')} Lead Campaign"),
+        "campaign_name": strategy.get("campaign_name") or f"{brief.get('project_name', 'Project')} Lead Campaign",
         "objective": "LEAD_GENERATION",
         "ad_sets": [
             {
@@ -63,18 +66,13 @@ def generate_full_campaign_plan(project_payload: dict) -> dict:
         "whatsapp_bot_notes": strategy.get("whatsapp_bot_notes")
     }
 
+    # FINAL RESPONSE: ensure we return only JSON-serializable structures (dicts/lists/strings/numbers/None)
     return {
-  "status": "SUCCESS",
-  "project_brief": { ... },
-  "strategy": { ... },
-  "creative_blueprint": { ... },
-  "image_assets": [ ... ],
-  "final_creative": {
-      "template_id": "PLACEHOLDER",
-      "background_image": "https://via.placeholder.com/1080",
-      "headline": "Project Name...",
-      "cta": "Check Availability",
-      "price": "65–80 Lakh"
-  },
-  "final_campaign_plan": { ... }
-}
+        "status": "SUCCESS",
+        "project_brief": brief,
+        "strategy": strategy,
+        "creative_blueprint": creative_blueprint,
+        "image_assets": images,
+        "final_creative": final_creative,
+        "final_campaign_plan": final_campaign_plan
+    }
