@@ -8,9 +8,6 @@ from app.context import COUNTERS, SCORING
 from app.whatsapp.routes import router as whatsapp_router
 from app.campaign_engine.routes import router as campaign_router
 
-# TEMP TEST ROUTE
-from app.campaign_engine.test_route import router as test_route
-app.include_router(test_route)
 
 # --------------------------------------------------
 # LOAD BRAIN ON STARTUP
@@ -33,10 +30,17 @@ app = FastAPI(
 
 
 # --------------------------------------------------
-# REGISTER ROUTERS
+# REGISTER ROUTERS — THESE ARE SAFE
 # --------------------------------------------------
 app.include_router(whatsapp_router)
 app.include_router(campaign_router)
+
+
+# --------------------------------------------------
+# TEST ROUTE — MUST BE IMPORTED *AFTER* APP IS DEFINED
+# --------------------------------------------------
+from app.campaign_engine.test_route import router as test_route
+app.include_router(test_route)
 
 
 # --------------------------------------------------
@@ -44,4 +48,6 @@ app.include_router(campaign_router)
 # --------------------------------------------------
 @app.get("/health")
 def health():
+    return {"status": "ok"}
+
     return {"status": "ok"}
