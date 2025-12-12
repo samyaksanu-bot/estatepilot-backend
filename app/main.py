@@ -8,6 +8,9 @@ from app.context import COUNTERS, SCORING
 from app.whatsapp.routes import router as whatsapp_router
 from app.campaign_engine.routes import router as campaign_router
 
+# TEMP TEST ROUTE
+from app.campaign_engine.test_route import router as test_route
+app.include_router(test_route)
 
 # --------------------------------------------------
 # LOAD BRAIN ON STARTUP
