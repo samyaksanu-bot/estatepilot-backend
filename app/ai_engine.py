@@ -1,9 +1,17 @@
 # app/ai_engine.py
 
 import os
+import re
+import json
+from time import sleep
+from typing import Any, Dict, Optional
+
 from openai import OpenAI
 from app.state import get_state, append_history, mark_handoff
 
+# ==========================================================
+# OPENAI CLIENT INIT
+# ==========================================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise Exception("OPENAI_API_KEY missing in environment variables")
@@ -11,6 +19,9 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
+# ==========================================================
+# LANGUAGE DETECTION (USED BY WHATSAPP BOT)
+# ==========================================================
 def _detect_language(text: str) -> str:
     hindi_words = [
         "kya", "kab", "kaise", "ghar", "zameen", "flat",
@@ -27,7 +38,14 @@ def _detect_language(text: str) -> str:
     return "english"
 
 
+# ==========================================================
+# WHATSAPP BOT AI (EXISTING LOGIC: keep behavior identical)
+# ==========================================================
 def call_ai(phone: str, user_text: str) -> str:
+    """
+    WhatsApp conversational handler (unchanged behavior).
+    Returns the assistant reply as a string.
+    """
     state = get_state(phone)
     project = state.get("project_context")
     history = state.get("conversation_history", [])
@@ -236,3 +254,68 @@ FORMAT:
     append_history(phone, "user", user_text)
     append_history(phone, "bot", reply)
     return reply
+
+
+# ==========================================================
+# NEW: HELPER FOR PILLAR-2 (STRICT JSON OUTPUT FOR GPT-4.1)
+# ==========================================================
+# We'll add call_gpt_json and helper functions here — ensure no conflict
+import typing  # kept minimal import if needed
+
+def _extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Try to extract a JSON object from a text response.
+    Returns parsed dict or None.
+    """
+    m = re.search(r"(\{[\s\S]*\})", text)
+    candidate = m.group(1) if m else text.strip()
+    try:
+        return json.loads(candidate)
+    except Exception:
+        try:
+            cand2 = candidate.replace("'", '"')
+            return json.loads(cand2)
+        except Exception:
+            return None
+
+
+def call_gpt_json(
+    system_prompt: str,
+    user_prompt: str,
+    model: str = "gpt-4.1",
+    temperature: float = 0.2,
+    max_tokens: int = 900,
+    retries: int = 2,
+    retry_delay: float = 0.8
+) -> Dict[str, Any]:
+    """
+    Call the OpenAI chat completion, expect a JSON object in the assistant reply.
+    Returns a dict: either the parsed JSON or {'error': '...'}.
+    Retries a small number of times if parsing fails.
+    """
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            res = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            content = res.choices[0].message.content.strip()
+            parsed = _extract_json_from_text(content)
+            if parsed is not None:
+                return parsed
+            last_err = f"parse_failed: could not extract JSON from model output. raw: {content[:500]}"
+        except Exception as e:
+            last_err = f"api_error: {str(e)}"
+        # small backoff before retry
+        if attempt < retries:
+            sleep(retry_delay)
+    return {"error": "strategy_generation_failed", "reason": last_err}
+
