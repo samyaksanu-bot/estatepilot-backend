@@ -29,6 +29,10 @@ def generate_full_campaign_plan(project_payload: Dict[str, Any]) -> Dict[str, An
     try:
         creative_blueprint = generate_creative_blueprint(brief, strategy) or {}
     except Exception as e:
+        from app.campaign_engine.image_engine import generate_sdxl_images
+
+image_assets = generate_sdxl_images(creative_blueprint)
+
         creative_blueprint = {"error": f"creative_blueprint_exception: {str(e)}"}
 
     creative_blueprint = _safe_dict(creative_blueprint)
@@ -82,7 +86,7 @@ def generate_full_campaign_plan(project_payload: Dict[str, Any]) -> Dict[str, An
         "project_brief": brief,
         "strategy": strategy,
         "creative_blueprint": creative_blueprint,
-        "image_assets": images,
+        "image_assets": image_assets,
         "final_creative": final_creative,
         "final_campaign_plan": final_campaign_plan
     }
