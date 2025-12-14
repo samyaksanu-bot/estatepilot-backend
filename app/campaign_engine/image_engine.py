@@ -2,18 +2,16 @@ import os
 from typing import Dict, Any, List
 from openai import OpenAI
 
-
 # -------------------------------------------------------------------
 # OpenAI Client (env-based, production-safe)
 # -------------------------------------------------------------------
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not OPENAI_API_KEY:
-    CLIENT = None
-else:
+if OPENAI_API_KEY:
     CLIENT = OpenAI()
-
+else:
+    CLIENT = None
 
 # -------------------------------------------------------------------
 # Placeholders
@@ -24,7 +22,6 @@ PLACEHOLDER_URLS = {
     "vertical": "https://via.placeholder.com/1080x1920",
     "landscape": "https://via.placeholder.com/1200x628"
 }
-
 
 def _placeholder_asset(format_label: str) -> Dict[str, Any]:
     return {
@@ -37,7 +34,6 @@ def _placeholder_asset(format_label: str) -> Dict[str, Any]:
         "error_message": "Placeholder used (image engine not available or failed)."
     }
 
-
 # -------------------------------------------------------------------
 # OpenAI Image Call
 # -------------------------------------------------------------------
@@ -47,6 +43,8 @@ def _call_openai_image(prompt: str, size: str) -> Dict[str, Any]:
         return {"error": "OpenAI client not initialized (missing API key)."}
 
     try:
+        print("🖼️ CALLING OPENAI IMAGE API")
+
         response = CLIENT.images.generate(
             model="gpt-image-1",
             prompt=prompt,
@@ -58,40 +56,25 @@ def _call_openai_image(prompt: str, size: str) -> Dict[str, Any]:
 
         data = response.data[0]
 
-        # OpenAI may return URL or base64 depending on backend
-        image_url = getattr(data, "url", None)
-        image_b64 = getattr(data, "b64_json", None)
-
         return {
-            "url": image_url,
-            "base64": image_b64
+            "url": getattr(data, "url", None),
+            "base64": getattr(data, "b64_json", None)
         }
 
     except Exception as e:
-    print("❌ OPENAI IMAGE ERROR:", str(e))
-    return {"error": str(e)}
-
-
+        print("❌ OPENAI IMAGE ERROR:", str(e))
+        return {"error": str(e)}
 
 # -------------------------------------------------------------------
 # Public API: Generate Images
 # -------------------------------------------------------------------
 
 def generate_sdxl_images(creative_blueprint: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    Generates square, vertical, and landscape images using OpenAI Images.
-    Returns a list of image asset dicts.
-    """
+    print("🔥 IMAGE ENGINE TRIGGERED")
+    print("OPENAI CLIENT:", "OK" if CLIENT else "MISSING")
 
-    prompt = creative_blueprint.get("sdxl_prompt") or ""
+    prompt = creative_blueprint.get("sdxl_prompt") or "Residential building exterior"
     negative = creative_blueprint.get("sdxl_negative_prompt") or ""
-
-    if not prompt:
-        prompt = "A realistic residential building exterior."
-
-    # ----------------------------------------------------------------
-    # REALISM + CAMERA + LIGHTING ANCHORS (CRITICAL)
-    # ----------------------------------------------------------------
 
     realism_prefix = (
         "Ultra-realistic architectural photography. "
@@ -101,9 +84,7 @@ def generate_sdxl_images(creative_blueprint: Dict[str, Any]) -> List[Dict[str, A
         "Looks like a real photograph, not an illustration or CGI render."
     )
 
-    avoid_clause = ""
-    if negative:
-        avoid_clause = f" Avoid the following elements completely: {negative}."
+    avoid_clause = f" Avoid these completely: {negative}." if negative else ""
 
     final_prompt = f"{realism_prefix} {prompt}.{avoid_clause}"
 
