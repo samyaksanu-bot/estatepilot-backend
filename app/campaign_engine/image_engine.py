@@ -12,7 +12,7 @@ if not OPENAI_API_KEY:
     # will fall back to placeholder mode
     CLIENT = None
 else:
-    CLIENT = OpenAI(api_key=OPENAI_API_KEY)
+    CLIENT = OpenAI()
 
 PLACEHOLDER_URLS = {
     "square": "https://via.placeholder.com/1080",
