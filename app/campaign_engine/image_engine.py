@@ -92,10 +92,11 @@ def generate_sdxl_images(creative_blueprint: Dict[str, Any]) -> List[Dict[str, A
     outputs: List[Dict[str, Any]] = []
 
     formats = [
-        ("square", "1024x1024"),
-        ("vertical", "1024x1792"),
-        ("landscape", "1792x1024"),
-    ]
+    ("square", "1024x1024"),
+    ("vertical", "1024x1536"),
+    ("landscape", "1536x1024")
+]
+
 
     for label, size in formats:
         result = _call_openai_image(final_prompt, size)
