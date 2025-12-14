@@ -68,7 +68,9 @@ def _call_openai_image(prompt: str, size: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        return {"error": str(e)}
+    print("❌ OPENAI IMAGE ERROR:", str(e))
+    return {"error": str(e)}
+
 
 
 # -------------------------------------------------------------------
