@@ -27,15 +27,9 @@ def generate_full_campaign_plan(project_payload: Dict[str, Any]) -> Dict[str, An
 
     # Creative blueprint
     try:
-        creative_blueprint = generate_creative_blueprint(brief, strategy) or {}
-    except Exception as e:
-        from app.campaign_engine.image_engine import generate_sdxl_images
-
-image_assets = generate_sdxl_images(creative_blueprint)
-
-        creative_blueprint = {"error": f"creative_blueprint_exception: {str(e)}"}
-
-    creative_blueprint = _safe_dict(creative_blueprint)
+           creative_blueprint = generate_creative_blueprint(brief, strategy)
+           except Exception as e:
+           creative_blueprint = {"error": f"creative_blueprint_exception: {str(e)}"}
 
     # Image generation
     try:
