@@ -93,9 +93,22 @@ def generate_sdxl_images(creative_blueprint: Dict[str, Any]) -> List[Dict[str, A
         prompt = "realistic architectural visual of a residential building, neutral daylight, no luxury, no invented amenities."
 
     # Build final prompt; keep negative separate for engines that accept negative
-    final_prompt = prompt
-    if negative:
-        final_prompt = f"{prompt} --negative {negative}"
+    # ---- REALISM ANCHORS (GLOBAL) ----
+     realism_prefix = (
+    "Ultra-realistic architectural photography. "
+    "Natural daylight with real-world lighting physics. "
+    "Shot on DSLR camera, 24mm wide-angle lens. "
+    "Real construction materials, accurate textures, true-to-life colors. "
+    "Looks like a real photograph, not an illustration or CGI render."
+)
+
+# ---- NEGATIVE ELEMENTS (PLAIN ENGLISH) ----
+avoid_clause = ""
+if negative:
+    avoid_clause = f" Avoid the following elements completely: {negative}."
+
+# ---- FINAL PROMPT (OPENAI-COMPATIBLE) ----
+final_prompt = f"{realism_prefix} {prompt}.{avoid_clause}"
 
     outputs = []
 
