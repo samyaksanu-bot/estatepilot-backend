@@ -63,7 +63,14 @@ def _call_openai_image(prompt: str, size: str) -> Dict[str, Any]:
 
     except Exception as e:
         print("❌ OPENAI IMAGE ERROR:", str(e))
-        return {"error": str(e)}
+        return {
+    "error": str(e),
+    "debug": {
+        "model": "gpt-image-1",
+        "has_key": bool(OPENAI_API_KEY),
+        "org_verified": True
+    }
+}
 
 # -------------------------------------------------------------------
 # Public API: Generate Images
