@@ -1,52 +1,35 @@
-from typing import Dict, Any
-from uuid import uuid4
+from app.database import supabase
 from app.campaign_engine.project_brief import build_project_brief
 from app.campaign_engine.strategy_engine import generate_strategy
 from app.campaign_engine.creative_blueprint import generate_creative_blueprint
-from app.campaign_engine.image_engine import generate_sdxl_images
-from app.database import supabase
-from app.logger import setup_logger
-
-logger = setup_logger(__name__)
 
 
-def generate_strategy_only(project_payload: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    STEP 1
-    - Generate brief
-    - Generate strategy
-    - Generate creative blueprint
-    - Persist campaign
-    """
-
-    campaign_id = str(uuid4())
-
-    brief = build_project_brief(project_payload)
+def generate_strategy_only(payload: dict) -> dict:
+    brief = build_project_brief(payload)
     strategy = generate_strategy(brief)
     blueprint = generate_creative_blueprint(brief, strategy)
 
-    record = {
-        "id": campaign_id,
+    result = supabase.table("campaigns").insert({
         "brief": brief,
         "strategy": strategy,
         "blueprint": blueprint,
-        "image_status": "PENDING"
+        "image_status": "pending"
+    }).execute()
+
+    campaign = result.data[0]
+
+    return {
+        "id": campaign["id"],
+        "brief": brief,
+        "strategy": strategy,
+        "creative_blueprint": blueprint,
+        "image_status": campaign["image_status"]
     }
-
-    supabase.table("campaigns").insert(record).execute()
-
-    return record
+from app.campaign_engine.image_engine import generate_sdxl_images
 
 
-def generate_images_for_campaign(campaign_id: str) -> Dict[str, Any]:
-    """
-    STEP 2
-    - Fetch campaign
-    - Generate images
-    - Update DB
-    """
-
-    res = (
+def generate_images_for_campaign(campaign_id: str) -> dict:
+    record = (
         supabase
         .table("campaigns")
         .select("*")
@@ -55,22 +38,20 @@ def generate_images_for_campaign(campaign_id: str) -> Dict[str, Any]:
         .execute()
     )
 
-    if not res.data:
+    if not record.data:
         raise ValueError("Campaign not found")
 
-    campaign = res.data
+    blueprint = record.data["blueprint"]
 
-    images = generate_sdxl_images(campaign["blueprint"])
+    images = generate_sdxl_images(blueprint)
 
-    supabase.table("campaigns").update(
-        {
-            "image_assets": images,
-            "image_status": "DONE"
-        }
-    ).eq("id", campaign_id).execute()
+    supabase.table("campaigns").update({
+        "image_status": "completed",
+        "images": images
+    }).eq("id", campaign_id).execute()
 
     return {
         "campaign_id": campaign_id,
-        "image_status": "DONE",
+        "image_status": "completed",
         "images": images
     }
