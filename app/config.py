@@ -15,5 +15,9 @@ class Settings:
 
     JWT_SECRET = os.getenv("JWT_SECRET", "secret")
     JWT_ALGORITHM = "HS256"
+     LOG_LEVEL: str = "INFO"
 
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
 settings = Settings()
