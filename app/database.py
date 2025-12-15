@@ -1,14 +1,18 @@
-import os
 from supabase import create_client
+from app.config import settings
+from app.logger import setup_logger
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+logger = setup_logger(__name__)
 
-print("SUPABASE_URL =", SUPABASE_URL)
-print("SUPABASE_KEY EXISTS =", bool(SUPABASE_KEY))
+SUPABASE_URL = settings.SUPABASE_URL
+SUPABASE_KEY = settings.SUPABASE_KEY
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("❌ Supabase ENV vars missing")
+    raise RuntimeError("SUPABASE_URL or SUPABASE_KEY is missing")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
+try:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    logger.info("✅ Supabase connected successfully")
+except Exception as e:
+    logger.critical(f"❌ Supabase connection failed: {e}")
+    raise  # ⬅️ CRASH THE APP
