@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
+
 
 class Settings:
     META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN")
@@ -15,9 +17,12 @@ class Settings:
 
     JWT_SECRET = os.getenv("JWT_SECRET", "secret")
     JWT_ALGORITHM = "HS256"
-     LOG_LEVEL: str = "INFO"
+
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")  # ✅ FIXED
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+
 settings = Settings()
