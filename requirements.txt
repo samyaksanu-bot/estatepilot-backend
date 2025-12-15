@@ -4,3 +4,4 @@ python-dotenv
 requests
 pydantic
 openai>=1.40.0
+supabase==2.3.0
