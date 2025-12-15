@@ -44,7 +44,13 @@ async def generate_campaign(payload: ProjectPayload):
         raise HTTPException(status_code=500, detail="Campaign generation failed")
 
 @router.post("/{campaign_id}/images")
-async def generate_campaign_images(campaign_id: str):
+async def generate_images(campaign_id: str):
+    try:
+        return generate_images_for_campaign(campaign_id)
+    except Exception as e:
+        logger.error(str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Image generation failed")
+
     """
     Trigger image generation for an existing campaign.
     This endpoint is async-safe and retryable.
