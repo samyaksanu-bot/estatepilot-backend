@@ -16,10 +16,6 @@ router = APIRouter(
 )
 
 
-# -------------------------------------------------------------------
-# Request Schema
-# -------------------------------------------------------------------
-
 class ProjectPayload(BaseModel):
     project_name: str
     location: str
@@ -31,20 +27,8 @@ class ProjectPayload(BaseModel):
     notes: Optional[str] = ""
 
 
-# -------------------------------------------------------------------
-# 1️⃣ Campaign Strategy Generation (FAST, NO IMAGES)
-# -------------------------------------------------------------------
-
 @router.post("/generate")
 async def generate_campaign(payload: ProjectPayload):
-    """
-    Creates campaign record with:
-    - project brief
-    - strategy
-    - creative blueprint
-    Images are NOT generated here.
-    """
-
     try:
         campaign = generate_strategy_only(payload.dict())
 
@@ -53,48 +37,24 @@ async def generate_campaign(payload: ProjectPayload):
             "status": "STRATEGY_READY",
             "project_brief": campaign["brief"],
             "strategy": campaign["strategy"],
-            "creative_blueprint": campaign["creative_blueprint"],
-            "image_status": campaign["image_status"]
+            "creative_blueprint": campaign["creative_blueprint"]
         }
 
-    except Exception as e:
+    except Exception:
         logger.error("Campaign generation failed", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Campaign strategy generation failed"
-        )
+        raise HTTPException(status_code=500, detail="Campaign generation failed")
 
 
-# -------------------------------------------------------------------
-# 2️⃣ Image Generation (ISOLATED, RETRYABLE)
-# -------------------------------------------------------------------
-
-@router.post("/{campaign_id}/images")
-async def generate_campaign_images(campaign_id: str):
-    """
-    Generates images for an existing campaign.
-    Can be retried safely.
-    Never blocks campaign creation.
-    """
-
+@router.post("/images")
+async def generate_campaign_images(creative_blueprint: dict):
     try:
-        result = generate_images_for_campaign(campaign_id)
+        result = generate_images_for_campaign(creative_blueprint)
 
         return {
-            "campaign_id": campaign_id,
             "status": result["image_status"],
             "images": result["images"]
         }
 
-    except ValueError:
-        raise HTTPException(
-            status_code=404,
-            detail="Campaign not found"
-        )
-
-    except Exception as e:
+    except Exception:
         logger.error("Image generation failed", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Image generation failed. Retry allowed."
-        )
+        raise HTTPException(status_code=500, detail="Image generation failed")
