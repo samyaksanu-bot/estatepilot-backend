@@ -3,21 +3,38 @@
 import os
 import re
 import json
-from time import sleep
-from typing import Any, Dict, Optional
-
+from typing import Any, Dict
 from openai import OpenAI
+
 from app.state import get_state, append_history, mark_handoff
 
 # ==========================================================
-# OPENAI CLIENT INIT
+# OPENAI CLIENT (LAZY INIT — SAFE)
 # ==========================================================
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise Exception("OPENAI_API_KEY missing in environment variables")
+def get_openai_client() -> OpenAI:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not configured")
+    return OpenAI(api_key=api_key)
 
-client = OpenAI(api_key=OPENAI_API_KEY)
 
+# ==========================================================
+# GPT CALL
+# ==========================================================
+def call_gpt_json(prompt: str) -> Dict[str, Any]:
+    client = get_openai_client()   # <-- created ONLY when needed
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": "Return valid JSON only."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.4
+    )
+
+    content = response.choices[0].message.content
+    return json.loads(content)
 
 # ==========================================================
 # LANGUAGE DETECTION (USED BY WHATSAPP BOT)
