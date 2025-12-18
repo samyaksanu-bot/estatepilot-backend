@@ -3,7 +3,7 @@
 import os
 import re
 import json
-from typing import Any, Dict
+from typing import Any, Optional
 from openai import OpenAI
 
 from app.state import get_state, append_history, mark_handoff
