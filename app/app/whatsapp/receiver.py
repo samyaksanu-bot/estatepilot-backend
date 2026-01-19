@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from app.leads.service import create_lead
-from app.whatsapp.flow import process_message
+from app.app.whatsapp.flow import process_message
 
 router = APIRouter(prefix="/whatsapp")
 

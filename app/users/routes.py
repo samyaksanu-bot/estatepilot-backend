@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from fastapi import APIRouter
 from app.users.service import create_user, login_user
 

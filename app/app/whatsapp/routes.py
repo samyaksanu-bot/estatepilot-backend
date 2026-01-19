@@ -3,7 +3,7 @@ from fastapi.responses import PlainTextResponse
 import traceback
 import os
 
-from app.whatsapp.sender import send_whatsapp_message
+from app.app.whatsapp.sender import send_whatsapp_message
 from app.intent_engine import detect_intent
 from app.template_engine import get_template
 from app.state import (
@@ -107,7 +107,7 @@ async def receive_message(request: Request):
             return {"status": "handoff"}
 
         # ====== NEW FUNNEL HANDLER ======
-        from app.whatsapp.flow import route_message
+        from app.app.whatsapp.flow import route_message
         reply_text = route_message(from_number, user_text)
 
         send_whatsapp_message(from_number, reply_text)

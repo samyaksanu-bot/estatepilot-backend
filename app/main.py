@@ -1,12 +1,19 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 
 # Core boot logic
-from app.brain_loader import load_brain
-from app.context import COUNTERS, SCORING
+from app.app.brain_loader import load_brain
+from app.app.context import COUNTERS, SCORING
 
 # Routers
-from app.whatsapp.routes import router as whatsapp_router
-from app.campaign_engine.routes import router as campaign_router
+from app.app.whatsapp.routes import router as whatsapp_router
+from app.leads.routes import router as leads_router
+from app.users.routes import router as users_router
+from app.tenants.routes import router as tenants_router
+from app.projects.routes import router as projects_router
+from app.scoring.routes import router as scoring_router
 
 
 # --------------------------------------------------
@@ -33,14 +40,13 @@ app = FastAPI(
 # REGISTER ROUTERS — THESE ARE SAFE
 # --------------------------------------------------
 app.include_router(whatsapp_router)
-app.include_router(campaign_router)
+app.include_router(leads_router)
+app.include_router(users_router)
+app.include_router(tenants_router)
+app.include_router(projects_router)
+app.include_router(scoring_router)
 
 
-# --------------------------------------------------
-# TEST ROUTE — MUST BE IMPORTED *AFTER* APP IS DEFINED
-# --------------------------------------------------
-from app.campaign_engine.test_route import router as test_route
-app.include_router(test_route)
 
 
 # --------------------------------------------------
